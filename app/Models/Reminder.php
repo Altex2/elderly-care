@@ -13,16 +13,14 @@ class Reminder extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
-        'created_by',
         'title',
         'description',
         'schedule',
         'priority',
+        'user_id',
+        'created_by',
         'status',
-        'next_occurrence',
-        'completed',
-        'completed_at'
+        'next_occurrence'
     ];
 
     protected $casts = [

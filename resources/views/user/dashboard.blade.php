@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('My Dashboard') }}
+            {{ __('Tablou de bord') }}
         </h2>
     </x-slot>
 
@@ -26,9 +26,9 @@
             const remainingMins = diffMins % 60;
 
             if (diffHours === 0) {
-                return `${diffMins} minutes`;
+                return `${diffMins} minute`;
             } else {
-                return `${diffHours} hours and ${remainingMins} minutes`;
+                return `${diffHours} ore și ${remainingMins} minute`;
             }
         }
 
@@ -48,6 +48,11 @@
 
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-8">
+            <!-- Voice Command Component -->
+            <div id="app">
+                <voice-command></voice-command>
+            </div>
+
             <!-- Voice Assistant Card -->
             <div class="bg-gradient-to-r from-blue-500 to-blue-600 overflow-hidden shadow-xl rounded-lg">
                 <a href="{{ route('voice.interface') }}"
@@ -61,8 +66,8 @@
                                 </svg>
                             </div>
                             <div>
-                                <h3 class="text-xl font-semibold text-white">Voice Assistant</h3>
-                                <p class="text-blue-100">Control your reminders with voice commands</p>
+                                <h3 class="text-xl font-semibold text-white">Asistent Vocal</h3>
+                                <p class="text-blue-100">Controlați memento-urile dvs. cu comenzi vocale</p>
                             </div>
                         </div>
                         <div class="text-white">
@@ -75,182 +80,129 @@
             </div>
 
             <!-- Overdue Reminders -->
+            @if($overdueReminders->count() > 0)
+                <div class="mb-8">
+                    <h4 class="text-md font-medium text-gray-700 dark:text-gray-300 mb-4">Restante</h4>
+                    <div class="space-y-4">
+                        @foreach($overdueReminders as $reminder)
+                            <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <h3 class="font-semibold text-red-900 dark:text-red-200">{{ $reminder->title }}</h3>
+                                        <p class="text-sm text-red-700 dark:text-red-300">
+                                            Programat pentru <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
+                                            (<span data-timestamp="{{ $reminder->next_occurrence }}" data-type="diff"></span> restant)
+                                        </p>
+                                    </div>
+                                    <a href="{{ route('voice.interface') }}"
+                                       class="ml-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+                                        Completează
+                                    </a>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <!-- Today's Reminders -->
             @php
-                $overdueReminders = auth()->user()->assignedReminders()
-                    ->where('status', 'active')
-                    ->where('completed', false)
-                    ->where('next_occurrence', '<', now())
-                    ->orderBy('next_occurrence')
-                    ->get();
+                $todayReminders = $activeReminders->filter(function($reminder) {
+                    return $reminder->next_occurrence->isToday() && !$reminder->next_occurrence->isPast();
+                });
             @endphp
 
-            <!-- Active and Completed Reminders -->
+            @if($todayReminders->count() > 0)
+                <div class="mb-8">
+                    <h4 class="text-md font-medium text-gray-700 dark:text-gray-300 mb-4">Pentru astăzi</h4>
+                    <div class="space-y-4">
+                        @foreach($todayReminders as $reminder)
+                            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <h3 class="font-semibold text-blue-900 dark:text-blue-200">{{ $reminder->title }}</h3>
+                                        <p class="text-sm text-blue-700 dark:text-blue-300">
+                                            Programat pentru <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
+                                        </p>
+                                    </div>
+                                    <a href="{{ route('voice.interface') }}"
+                                       class="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                                        Completează
+                                    </a>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <!-- Upcoming Reminders -->
+            @php
+                $upcomingReminders = $activeReminders->filter(function($reminder) {
+                    return !$reminder->next_occurrence->isToday() && !$reminder->next_occurrence->isPast();
+                });
+            @endphp
+
+            @if($upcomingReminders->count() > 0)
+                <div class="mb-8">
+                    <h4 class="text-md font-medium text-gray-700 dark:text-gray-300 mb-4">Viitoare</h4>
+                    <div class="space-y-4">
+                        @foreach($upcomingReminders as $reminder)
+                            <div class="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <h3 class="font-semibold text-yellow-900 dark:text-yellow-200">{{ $reminder->title }}</h3>
+                                        <p class="text-sm text-yellow-700 dark:text-yellow-300">
+                                            Programat pentru <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
+                                        </p>
+                                    </div>
+                                    <a href="{{ route('voice.interface') }}"
+                                       class="ml-4 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm">
+                                        Completează
+                                    </a>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            @if($overdueReminders->count() === 0 && $todayReminders->count() === 0 && $upcomingReminders->count() === 0)
+                <div class="text-center py-8">
+                    <p class="text-gray-600 dark:text-gray-400">Nu există memento-uri active</p>
+                </div>
+            @endif
+
+            <!-- Completed Reminders -->
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm rounded-lg">
                 <div class="p-6">
-                    <!-- Tabs -->
-                    <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
-                        <ul class="flex -mb-px" x-data="{ activeTab: 'active' }">
-                            <li class="mr-2">
-                                <button @click="activeTab = 'active'"
-                                        :class="{'border-blue-500 text-blue-600 dark:text-blue-400': activeTab === 'active',
-                                                'border-transparent text-gray-500 dark:text-gray-400': activeTab !== 'active'}"
-                                        class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-600 hover:border-gray-300">
-                                    Active Reminders
-                                </button>
-                            </li>
-                            <li class="mr-2">
-                                <button @click="activeTab = 'completed'"
-                                        :class="{'border-blue-500 text-blue-600 dark:text-blue-400': activeTab === 'completed',
-                                                'border-transparent text-gray-500 dark:text-gray-400': activeTab !== 'completed'}"
-                                        class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-600 hover:border-gray-300">
-                                    Completed Reminders
-                                </button>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <!-- Active Reminders Tab -->
-                    <div x-show="activeTab === 'active'">
-                        <!-- Overdue Reminders -->
-                        @if($overdueReminders->count() > 0)
-                            <div class="mb-8">
-                                <h4 class="text-md font-medium text-gray-700 dark:text-gray-300 mb-4">Overdue</h4>
-                                <div class="space-y-4">
-                                    @foreach($overdueReminders as $reminder)
-                                        <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                                            <div class="flex justify-between items-start">
-                                                <div>
-                                                    <h3 class="font-semibold text-red-900 dark:text-red-200">{{ $reminder->title }}</h3>
-                                                    <p class="text-sm text-red-700 dark:text-red-300">
-                                                        Scheduled for <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
-                                                        (<span data-timestamp="{{ $reminder->next_occurrence }}" data-type="diff"></span> overdue)
-                                                    </p>
-                                                </div>
-                                                <a href="{{ route('voice.interface') }}"
-                                                   class="ml-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
-                                                    Complete
-                                                </a>
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-
-                        <!-- Today's Reminders -->
-                        @php
-                            $activeReminders = auth()->user()->assignedReminders()
-                                ->where('status', 'active')
-                                ->where('completed', false)
-                                ->orderBy('next_occurrence')
-                                ->get();
-                        @endphp
-
-                        @php
-                            $todayReminders = $activeReminders->filter(function($reminder) {
-                                return $reminder->next_occurrence->isToday() && !$reminder->next_occurrence->isPast();
-                            });
-                        @endphp
-
-                        @if($todayReminders->count() > 0)
-                            <div class="mb-8">
-                                <h4 class="text-md font-medium text-gray-700 dark:text-gray-300 mb-4">Today</h4>
-                                <div class="space-y-4">
-                                    @foreach($todayReminders as $reminder)
-                                        <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                            <div class="flex justify-between items-start">
-                                                <div>
-                                                    <h3 class="font-semibold text-blue-900 dark:text-blue-200">{{ $reminder->title }}</h3>
-                                                    <p class="text-sm text-blue-700 dark:text-blue-300">
-                                                        Scheduled for <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
-                                                    </p>
-                                                </div>
-                                                <a href="{{ route('voice.interface') }}"
-                                                   class="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                                                    Complete
-                                                </a>
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-
-                        <!-- Upcoming Reminders -->
-                        @php
-                            $upcomingReminders = $activeReminders->filter(function($reminder) {
-                                return !$reminder->next_occurrence->isToday() && !$reminder->next_occurrence->isPast();
-                            });
-                        @endphp
-
-                        @if($upcomingReminders->count() > 0)
-                            <div class="mb-8">
-                                <h4 class="text-md font-medium text-gray-700 dark:text-gray-300 mb-4">Upcoming</h4>
-                                <div class="space-y-4">
-                                    @foreach($upcomingReminders as $reminder)
-                                        <div class="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                                            <div class="flex justify-between items-start">
-                                                <div>
-                                                    <h3 class="font-semibold text-yellow-900 dark:text-yellow-200">{{ $reminder->title }}</h3>
-                                                    <p class="text-sm text-yellow-700 dark:text-yellow-300">
-                                                        Scheduled for <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
-                                                    </p>
-                                                </div>
-                                                <a href="{{ route('voice.interface') }}"
-                                                   class="ml-4 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm">
-                                                    Complete
-                                                </a>
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-
-                        @if($overdueReminders->count() === 0 && $todayReminders->count() === 0 && $upcomingReminders->count() === 0)
-                            <div class="text-center py-8">
-                                <p class="text-gray-600 dark:text-gray-400">No active reminders</p>
-                            </div>
-                        @endif
-                    </div>
-
-                    <!-- Completed Reminders Tab -->
-                    <div x-show="activeTab === 'completed'" class="space-y-4">
-                        @php
-                            $completedReminders = auth()->user()->assignedReminders()
-                                ->where('completed', true)
-                                ->orderByDesc('completed_at')
-                                ->limit(10)
-                                ->get();
-                        @endphp
-
-                        @forelse($completedReminders as $reminder)
-                            <div class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                                <div>
-                                    <div class="flex items-center justify-between">
-                                        <h3 class="font-semibold text-green-900 dark:text-green-200">{{ $reminder->title }}</h3>
-                                        @if($reminder->priority)
-                                            <span class="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100">
-                                                Priority {{ $reminder->priority }}
-                                            </span>
-                                        @endif
-                                    </div>
-                                    <p class="mt-1 text-sm text-green-700 dark:text-green-300">
-                                        Completed <span data-timestamp="{{ $reminder->completed_at }}" data-type="diff"></span> ago
-                                    </p>
-                                    @if($reminder->description)
-                                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                                            {{ $reminder->description }}
-                                        </p>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Memento-uri completate</h3>
+                    @forelse($completedReminders as $reminder)
+                        <div class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 mb-4">
+                            <div>
+                                <div class="flex items-center justify-between">
+                                    <h3 class="font-semibold text-green-900 dark:text-green-200">{{ $reminder->title }}</h3>
+                                    @if($reminder->priority)
+                                        <span class="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100">
+                                            Prioritate {{ $reminder->priority }}
+                                        </span>
                                     @endif
                                 </div>
+                                <p class="mt-1 text-sm text-green-700 dark:text-green-300">
+                                    Completat <span data-timestamp="{{ $reminder->completed_at }}" data-type="diff"></span> în urmă
+                                </p>
+                                @if($reminder->description)
+                                    <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                        {{ $reminder->description }}
+                                    </p>
+                                @endif
                             </div>
-                        @empty
-                            <div class="text-center py-8">
-                                <p class="text-gray-600 dark:text-gray-400">No completed reminders yet</p>
-                            </div>
-                        @endforelse
-                    </div>
+                        </div>
+                    @empty
+                        <div class="text-center py-8">
+                            <p class="text-gray-600 dark:text-gray-400">Nu există memento-uri completate</p>
+                        </div>
+                    @endforelse
                 </div>
             </div>
         </div>

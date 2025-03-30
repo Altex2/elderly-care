@@ -20,20 +20,10 @@ class UserController extends Controller
             ->orderBy('next_occurrence')
             ->get();
 
-        $todayReminders = auth()->user()->assignedReminders()
+        $activeReminders = auth()->user()->assignedReminders()
             ->where('status', 'active')
             ->where('completed', false)
-            ->whereBetween('next_occurrence', [
-                $userNow->copy()->startOfDay(),
-                $userNow->copy()->endOfDay()
-            ])
-            ->orderBy('next_occurrence')
-            ->get();
-
-        $upcomingReminders = auth()->user()->assignedReminders()
-            ->where('status', 'active')
-            ->where('completed', false)
-            ->where('next_occurrence', '>', $userNow->copy()->endOfDay())
+            ->where('next_occurrence', '>=', $userNow)
             ->orderBy('next_occurrence')
             ->get();
 
@@ -45,8 +35,7 @@ class UserController extends Controller
 
         return view('user.dashboard', compact(
             'overdueReminders',
-            'todayReminders',
-            'upcomingReminders',
+            'activeReminders',
             'completedReminders',
             'timezoneOffset'
         ));

@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Manage Reminders') }}
+            {{ __('Gestionare memento-uri') }}
         </h2>
     </x-slot>
 
@@ -17,7 +17,7 @@
                             </div>
                             <button onclick="confirmPatientDelete({{ $patient->id }}, '{{ $patient->name }}')"
                                     class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
-                                Remove Patient
+                                Elimină pacient
                             </button>
                         </div>
 
@@ -31,7 +31,7 @@
                                                 {{ $reminder->priority >= 4 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
                                                    ($reminder->priority >= 2 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
                                                    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200') }}">
-                                                Priority {{ $reminder->priority }}
+                                                Prioritate {{ $reminder->priority }}
                                             </span>
                                             <span class="px-2 py-1 text-xs rounded-full
                                                 {{ $reminder->status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
@@ -41,13 +41,13 @@
                                         </div>
                                         <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $reminder->description }}</p>
                                         <div class="mt-2 text-sm">
-                                            <span class="text-gray-600 dark:text-gray-400">Schedule: </span>
+                                            <span class="text-gray-600 dark:text-gray-400">Program: </span>
                                             <span class="text-gray-900 dark:text-gray-100">{{ $reminder->schedule }}</span>
                                         </div>
                                         <div class="text-sm">
-                                            <span class="text-gray-600 dark:text-gray-400">Next occurrence: </span>
+                                            <span class="text-gray-600 dark:text-gray-400">Următoarea apariție: </span>
                                             <span class="text-gray-900 dark:text-gray-100">
-                                                {{ $reminder->next_occurrence ? $reminder->next_occurrence->format('F j, Y g:i A') : 'Not scheduled' }}
+                                                {{ $reminder->next_occurrence ? $reminder->next_occurrence->format('F j, Y g:i A') : 'Nu este programat' }}
                                             </span>
                                         </div>
                                     </div>
@@ -70,7 +70,7 @@
                                 </div>
                             @empty
                                 <div class="text-center py-4 text-gray-600 dark:text-gray-400">
-                                    No reminders set for this patient.
+                                    Nu există memento-uri setate pentru acest pacient.
                                 </div>
                             @endforelse
                         </div>
@@ -84,28 +84,28 @@
     <div id="deletePatientModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Delete Patient</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Eliminare pacient</h3>
                 <p class="text-gray-600 dark:text-gray-400 mb-4">
-                    Are you sure you want to delete <span id="deletePatientName" class="font-medium"></span>?
-                    This action cannot be undone and will remove all associated reminders.
+                    Sigur doriți să eliminați pacientul <span id="deletePatientName" class="font-medium"></span>?
+                    Această acțiune nu poate fi anulată și va elimina toate memento-urile asociate.
                 </p>
                 <p class="text-gray-600 dark:text-gray-400 mb-4">
-                    Type "delete" to confirm:
+                    Scrieți "delete" pentru a confirma:
                 </p>
                 <input type="text"
                        id="deleteConfirmation"
                        class="mb-4 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-red-500 focus:ring-red-500"
-                       placeholder="Type 'delete' to confirm">
+                       placeholder="Scrieți 'delete' pentru a confirma">
                 <div class="flex justify-end space-x-3">
                     <button onclick="closeDeleteModal()"
                             class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700">
-                        Cancel
+                        Anulare
                     </button>
                     <button id="confirmDeleteBtn"
                             disabled
                             onclick="executePatientDelete()"
                             class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                        Delete Patient
+                        Elimină pacient
                     </button>
                 </div>
             </div>
@@ -166,7 +166,7 @@
         }
 
         function deleteReminder(reminderId) {
-            if (confirm('Are you sure you want to delete this reminder?')) {
+            if (confirm('Sigur doriți să eliminați acest memento?')) {
                 fetch(`/caregiver/reminders/${reminderId}`, {
                     method: 'DELETE',
                     headers: {

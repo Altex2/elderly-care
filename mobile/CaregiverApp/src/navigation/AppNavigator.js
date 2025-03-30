@@ -2,7 +2,8 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
+import { faHome, faBell, faUsers, faUser } from '@fortawesome/free-solid-svg-icons';
 
 // Auth Screens
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -26,8 +27,13 @@ const Tab = createBottomTabNavigator();
 const CaregiverTabs = () => (
   <Tab.Navigator
     screenOptions={{
-      headerShown: true,
+      headerShown: false,
       tabBarActiveTintColor: '#007AFF',
+      tabBarInactiveTintColor: '#999',
+      tabBarStyle: {
+        paddingBottom: 5,
+        paddingTop: 5,
+      }
     }}
   >
     <Tab.Screen 
@@ -35,7 +41,7 @@ const CaregiverTabs = () => (
       component={CaregiverDashboard}
       options={{
         tabBarIcon: ({ color, size }) => (
-          <Icon name="dashboard" size={size} color={color} />
+          <FontAwesomeIcon icon={faHome} size={size} color={color} />
         ),
       }}
     />
@@ -44,7 +50,7 @@ const CaregiverTabs = () => (
       component={RemindersScreen}
       options={{
         tabBarIcon: ({ color, size }) => (
-          <Icon name="notifications" size={size} color={color} />
+          <FontAwesomeIcon icon={faBell} size={size} color={color} />
         ),
       }}
     />
@@ -53,7 +59,7 @@ const CaregiverTabs = () => (
       component={PatientsScreen}
       options={{
         tabBarIcon: ({ color, size }) => (
-          <Icon name="people" size={size} color={color} />
+          <FontAwesomeIcon icon={faUsers} size={size} color={color} />
         ),
       }}
     />
@@ -62,7 +68,7 @@ const CaregiverTabs = () => (
       component={ProfileScreen}
       options={{
         tabBarIcon: ({ color, size }) => (
-          <Icon name="person" size={size} color={color} />
+          <FontAwesomeIcon icon={faUser} size={size} color={color} />
         ),
       }}
     />
@@ -72,7 +78,7 @@ const CaregiverTabs = () => (
 const UserTabs = () => (
   <Tab.Navigator
     screenOptions={{
-      headerShown: true,
+      headerShown: false,
       tabBarActiveTintColor: '#007AFF',
     }}
   >
@@ -81,7 +87,7 @@ const UserTabs = () => (
       component={UserDashboard}
       options={{
         tabBarIcon: ({ color, size }) => (
-          <Icon name="dashboard" size={size} color={color} />
+          <FontAwesomeIcon icon={faHome} size={size} color={color} />
         ),
       }}
     />
@@ -90,7 +96,7 @@ const UserTabs = () => (
       component={VoiceInterface}
       options={{
         tabBarIcon: ({ color, size }) => (
-          <Icon name="mic" size={size} color={color} />
+          <FontAwesomeIcon icon={faBell} size={size} color={color} />
         ),
       }}
     />
@@ -99,7 +105,7 @@ const UserTabs = () => (
       component={ProfileScreen}
       options={{
         tabBarIcon: ({ color, size }) => (
-          <Icon name="person" size={size} color={color} />
+          <FontAwesomeIcon icon={faUser} size={size} color={color} />
         ),
       }}
     />
@@ -112,7 +118,6 @@ const AppNavigator = () => {
       <Stack.Navigator 
         screenOptions={{
           headerShown: false,
-          cardStyle: { backgroundColor: '#fff' }
         }}
       >
         <Stack.Screen name="Login" component={LoginScreen} />

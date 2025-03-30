@@ -48,8 +48,7 @@ class User extends Authenticatable
     public function patients()
     {
         return $this->belongsToMany(User::class, 'caregiver_patient', 'caregiver_id', 'patient_id')
-                    ->where('role', 'user')
-                    ->withTimestamps();
+                    ->whereRaw('users.role = ?', ['user']);
     }
 
     // Caregivers managing this patient

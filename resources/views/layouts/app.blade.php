@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'Elderly Care') }}</title>
+        <title>{{ config('app.name', 'Helper Buddy') }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -96,7 +96,7 @@
             <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                 <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                     <div class="text-center text-sm text-gray-500 dark:text-gray-400">
-                        © {{ date('Y') }} Elderly Care Assistant. All rights reserved.
+                        © {{ date('Y') }} Helper Buddy. All rights reserved.
                     </div>
                 </div>
             </footer>

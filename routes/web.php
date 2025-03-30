@@ -5,6 +5,7 @@ use App\Http\Controllers\TestController;
 use App\Http\Controllers\CaregiverController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VoiceController;
+use App\Http\Controllers\VoiceCommandController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
 
@@ -27,33 +28,28 @@ Route::get('/', function () {
 // Authentication routes are handled by auth.php
 
 // Caregiver Routes
-Route::middleware(['auth', 'role:caregiver'])->group(function () {
-    Route::get('/caregiver/dashboard', [CaregiverController::class, 'dashboard'])
-        ->name('caregiver.dashboard');
+Route::middleware(['auth'])->group(function () {
+    // User routes
+    Route::middleware(['role:user'])->group(function () {
+        Route::get('/dashboard', [UserController::class, 'dashboard'])->name('user.dashboard');
+        Route::post('/voice/process', [VoiceCommandController::class, 'processCommand'])->name('voice.process');
+        Route::get('/voice', function () {
+            return view('voice.interface');
+        })->name('voice.interface');
+        Route::post('/reminders/{reminder}/complete', [UserController::class, 'completeReminder'])->name('reminders.complete');
+    });
 
-    // Patient and Reminder management
-    Route::get('/caregiver/reminders', [CaregiverController::class, 'reminders'])
-        ->name('caregiver.reminders');
-    Route::post('/caregiver/patients/create', [CaregiverController::class, 'createPatient'])
-        ->name('caregiver.patients.create');
-    Route::delete('/caregiver/patients/{patient}', [CaregiverController::class, 'removePatient'])
-        ->name('caregiver.patients.remove');
-    Route::post('/caregiver/reminders', [CaregiverController::class, 'createReminder'])
-        ->name('caregiver.reminders.create');
-    Route::put('/caregiver/reminders/{reminder}', [CaregiverController::class, 'updateReminder'])
-        ->name('caregiver.reminders.update');
-    Route::delete('/caregiver/reminders/{reminder}', [CaregiverController::class, 'deleteReminder'])
-        ->name('caregiver.reminders.delete');
-});
-
-// Patient Routes
-Route::middleware(['auth', 'role:user'])->group(function () {
-    Route::get('/user/dashboard', [UserController::class, 'dashboard'])
-        ->name('user.dashboard');
-    Route::get('/voice', [VoiceController::class, 'index'])
-        ->name('voice.interface');
-    Route::post('/voice/process', [VoiceController::class, 'processVoice'])
-        ->name('voice.process');
+    // Caregiver routes
+    Route::middleware(['role:caregiver'])->group(function () {
+        Route::get('/caregiver/dashboard', [CaregiverController::class, 'dashboard'])->name('caregiver.dashboard');
+        Route::get('/caregiver/patients', [CaregiverController::class, 'patients'])->name('caregiver.patients');
+        Route::get('/caregiver/reminders', [CaregiverController::class, 'reminders'])->name('caregiver.reminders');
+        Route::post('/caregiver/patients/create', [CaregiverController::class, 'createPatient'])->name('caregiver.patients.create');
+        Route::delete('/caregiver/patients/{patient}', [CaregiverController::class, 'removePatient'])->name('caregiver.patients.remove');
+        Route::post('/caregiver/reminders', [CaregiverController::class, 'createReminder'])->name('caregiver.reminders.create');
+        Route::put('/caregiver/reminders/{reminder}', [CaregiverController::class, 'updateReminder'])->name('caregiver.reminders.update');
+        Route::delete('/caregiver/reminders/{reminder}', [CaregiverController::class, 'deleteReminder'])->name('caregiver.reminders.delete');
+    });
 });
 
 // Profile Routes
@@ -72,6 +68,14 @@ Route::middleware(['auth'])->group(function () {
         Artisan::call('reminders:process');
         return response()->json(['message' => 'Reminders processed']);
     })->name('test.process-reminders');
+});
+
+// Voice command routes
+Route::middleware(['auth'])->group(function () {
+    Route::get('/voice', function () {
+        return view('voice.interface');
+    })->name('voice.interface');
+    Route::get('/voice/test', [VoiceCommandController::class, 'test'])->name('voice.test');
 });
 
 require __DIR__.'/auth.php';

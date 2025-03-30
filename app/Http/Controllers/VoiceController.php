@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Reminder;
 use App\Services\VoiceService;
 use App\Services\AIPersonalizationService;
+use App\Services\VoiceAgentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -13,11 +14,13 @@ class VoiceController extends Controller
 {
     protected $voiceService;
     protected $aiService;
+    protected $voiceAgentService;
 
-    public function __construct(VoiceService $voiceService, AIPersonalizationService $aiService)
+    public function __construct(VoiceService $voiceService, AIPersonalizationService $aiService, VoiceAgentService $voiceAgentService)
     {
         $this->voiceService = $voiceService;
         $this->aiService = $aiService;
+        $this->voiceAgentService = $voiceAgentService;
     }
 
     public function index()
@@ -344,5 +347,17 @@ class VoiceController extends Controller
         $testingDiv .= '</div>';
 
         return $testingDiv;
+    }
+
+    public function processCommand(Request $request)
+    {
+        $request->validate([
+            'text' => 'required|string'
+        ]);
+
+        $user = Auth::user();
+        $result = $this->voiceAgentService->processVoiceCommand($request->text, $user);
+
+        return response()->json($result);
     }
 }

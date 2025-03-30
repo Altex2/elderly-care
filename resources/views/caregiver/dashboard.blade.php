@@ -2,10 +2,10 @@
     <x-slot name="header">
         <div class="flex justify-between items-center">
             <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                {{ __('Caregiver Dashboard') }}
+                {{ __('Tablou de bord pentru îngrijitori') }}
             </h2>
             <button onclick="openAddPatientModal()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Add New Patient
+                Adaugă pacient nou
             </button>
         </div>
     </x-slot>
@@ -16,19 +16,19 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm rounded-lg">
                     <div class="p-6">
-                        <div class="text-gray-500 dark:text-gray-400 text-sm">Total Patients</div>
+                        <div class="text-gray-500 dark:text-gray-400 text-sm">Total pacienți</div>
                         <div class="text-2xl font-bold">{{ $patients->count() }}</div>
                     </div>
                 </div>
                 <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm rounded-lg">
                     <div class="p-6">
-                        <div class="text-gray-500 dark:text-gray-400 text-sm">Active Reminders</div>
+                        <div class="text-gray-500 dark:text-gray-400 text-sm">Memento-uri active</div>
                         <div class="text-2xl font-bold">{{ $reminders->where('status', 'active')->count() }}</div>
                     </div>
                 </div>
                 <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm rounded-lg">
                     <div class="p-6">
-                        <div class="text-gray-500 dark:text-gray-400 text-sm">Today's Tasks</div>
+                        <div class="text-gray-500 dark:text-gray-400 text-sm">Sarcini pentru astăzi</div>
                         <div class="text-2xl font-bold">
                             {{ $reminders->where('status', 'active')
                                 ->filter(function($reminder) {
@@ -42,7 +42,7 @@
             <!-- Patients List -->
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm rounded-lg mb-6">
                 <div class="p-6">
-                    <h3 class="text-lg font-semibold mb-4">Your Patients</h3>
+                    <h3 class="text-lg font-semibold mb-4">Pacienții dvs.</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         @forelse($patients as $patient)
                             <div class="border dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -62,7 +62,7 @@
                                     </div>
                                 </div>
                                 <div class="mt-4">
-                                    <h5 class="text-sm font-medium mb-2">Today's Reminders</h5>
+                                    <h5 class="text-sm font-medium mb-2">Memento-uri pentru astăzi</h5>
                                     @php
                                         $patientReminders = $reminders->where('user_id', $patient->id)
                                             ->where('status', 'active')
@@ -75,13 +75,13 @@
                                             • {{ $reminder->title }}
                                         </div>
                                     @empty
-                                        <div class="text-sm text-gray-500">No reminders for today</div>
+                                        <div class="text-sm text-gray-500">Nu există memento-uri pentru astăzi</div>
                                     @endforelse
                                 </div>
                             </div>
                         @empty
                             <div class="col-span-full text-center py-8 text-gray-500">
-                                No patients yet. Click "Add New Patient" to get started.
+                                Nu există pacienți încă. Apăsați "Adaugă pacient nou" pentru a începe.
                             </div>
                         @endforelse
                     </div>
@@ -95,12 +95,12 @@
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
                 <div class="p-6">
-                    <h3 class="text-lg font-medium mb-4">Add New Patient</h3>
+                    <h3 class="text-lg font-medium mb-4">Adaugă pacient nou</h3>
                     <form id="addPatientForm" action="{{ route('caregiver.patients.create') }}" method="POST">
                         @csrf
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nume</label>
                                 <input type="text" name="name" required
                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
                             </div>
@@ -110,7 +110,7 @@
                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Parolă</label>
                                 <input type="password" name="password" required
                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
                             </div>
@@ -118,11 +118,11 @@
                         <div class="mt-6 flex justify-end space-x-3">
                             <button type="button" onclick="closeAddPatientModal()"
                                     class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700">
-                                Cancel
+                                Anulare
                             </button>
                             <button type="submit"
                                     class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                Add Patient
+                                Adaugă pacient
                             </button>
                         </div>
                     </form>
@@ -136,29 +136,29 @@
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
                 <div class="p-6">
-                    <h3 class="text-lg font-medium mb-4">Add New Reminder</h3>
+                    <h3 class="text-lg font-medium mb-4">Adaugă memento nou</h3>
                     <form id="addReminderForm" onsubmit="submitReminderForm(event)">
                         @csrf
                         <input type="hidden" name="user_id" id="reminder_user_id">
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Titlu</label>
                                 <input type="text" name="title" required
                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Descriere</label>
                                 <textarea name="description"
                                         class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500"></textarea>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Schedule</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Program</label>
                                 <input type="text" name="schedule" required
                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500"
-                                       placeholder="e.g., daily at 9am">
+                                       placeholder="ex., zilnic la ora 9">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Priority (1-5)</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Prioritate (1-5)</label>
                                 <input type="number" name="priority" required min="1" max="5"
                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
                             </div>
@@ -166,11 +166,11 @@
                         <div class="mt-6 flex justify-end space-x-3">
                             <button type="button" onclick="closeReminderModal()"
                                     class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700">
-                                Cancel
+                                Anulare
                             </button>
                             <button type="submit"
                                     class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                Add Reminder
+                                Adaugă memento
                             </button>
                         </div>
                     </form>
@@ -193,7 +193,7 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400" id="reminderSuccessSchedule"></p>
             </div>
             <button onclick="hideNotification()" class="flex-shrink-0 text-gray-400 hover:text-gray-500">
-                <span class="sr-only">Close</span>
+                <span class="sr-only">Închide</span>
                 <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
                 </svg>

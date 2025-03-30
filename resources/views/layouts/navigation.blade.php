@@ -6,7 +6,7 @@
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     <a href="{{ route('caregiver.dashboard') }}" class="text-2xl font-bold text-blue-600">
-                        Elderly Care
+                        Helper Buddy
                     </a>
                 </div>
 
@@ -17,6 +17,9 @@
                     </x-nav-link>
                     <x-nav-link :href="route('caregiver.reminders')" :active="request()->routeIs('caregiver.reminders')">
                         {{ __('Manage Patients & Reminders') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('voice.interface')" :active="request()->routeIs('voice.interface')">
+                        {{ __('Voice Interface') }}
                     </x-nav-link>
                 </div>
             </div>

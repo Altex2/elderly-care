@@ -24,10 +24,32 @@ api.interceptors.request.use(
   }
 );
 
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    console.log('API Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      config: error.config
+    });
+
+    if (error.response?.status === 401) {
+      await AsyncStorage.removeItem('token');
+      // You might want to add navigation to login here
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authService = {
   login: async (email, password) => {
     const response = await api.post('/login', { email, password });
-    await AsyncStorage.setItem('token', response.data.token);
+    const token = response.data.token;
+    if (token) {
+      await AsyncStorage.setItem('token', token);
+      console.log('Stored token:', token);
+    }
     return response.data;
   },
   register: async (userData) => {
@@ -40,9 +62,19 @@ export const authService = {
   },
 };
 
+export const patientService = {
+  getPatients: () => api.get('/caregiver/patients'),
+  addPatient: (patientData) => api.post('/caregiver/patients/create', patientData),
+  removePatient: (patientId) => api.delete(`/caregiver/patients/${patientId}`),
+  updatePatient: (patientId, patientData) => api.put(`/caregiver/patients/${patientId}`, patientData),
+};
+
 export const reminderService = {
-  getReminders: () => api.get('/reminders'),
+  getReminders: () => api.get('/caregiver/reminders'),
   completeReminder: (id) => api.post(`/reminders/${id}/complete`),
+  createReminder: (reminderData) => api.post('/caregiver/reminders', reminderData),
+  updateReminder: (reminderId, reminderData) => api.put(`/caregiver/reminders/${reminderId}`, reminderData),
+  deleteReminder: (reminderId) => api.delete(`/caregiver/reminders/${reminderId}`),
 };
 
 export const voiceService = {

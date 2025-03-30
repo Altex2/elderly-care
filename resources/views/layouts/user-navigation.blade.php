@@ -6,7 +6,7 @@
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     <a href="{{ route('user.dashboard') }}" class="text-2xl font-bold text-blue-600">
-                        Elderly Care
+                        Helper Buddy
                     </a>
                 </div>
 
