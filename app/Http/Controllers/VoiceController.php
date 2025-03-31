@@ -8,7 +8,9 @@ use App\Services\AIPersonalizationService;
 use App\Services\VoiceAgentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use OpenAI\Laravel\Facades\OpenAI;
 
 class VoiceController extends Controller
 {
@@ -356,8 +358,105 @@ class VoiceController extends Controller
         ]);
 
         $user = Auth::user();
-        $result = $this->voiceAgentService->processVoiceCommand($request->text, $user);
+        $timezoneOffset = $request->input('timezone_offset', 0);
+        
+        $result = $this->voiceAgentService->processVoiceCommand(
+            $request->text,
+            $timezoneOffset,
+            $user
+        );
 
         return response()->json($result);
+    }
+
+    public function processAudio(Request $request)
+    {
+        try {
+            if (!$request->hasFile('audio')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Nu s-a primit niciun fișier audio.'
+                ]);
+            }
+
+            $audioFile = $request->file('audio');
+            
+            // Log the incoming file details
+            Log::info('Received audio file', [
+                'name' => $audioFile->getClientOriginalName(),
+                'mime' => $audioFile->getMimeType(),
+                'size' => $audioFile->getSize(),
+                'extension' => $audioFile->getClientOriginalExtension()
+            ]);
+
+            // Create temp directory if it doesn't exist
+            $tempDir = storage_path('app/temp');
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+
+            // Save with original extension
+            $extension = $audioFile->getClientOriginalExtension() ?: 'webm';
+            $tempPath = $tempDir . '/' . uniqid('audio_') . '.' . $extension;
+            
+            // Move the uploaded file
+            $audioFile->move(dirname($tempPath), basename($tempPath));
+
+            // Verify the file exists and is readable
+            if (!file_exists($tempPath) || !is_readable($tempPath)) {
+                throw new \Exception('Could not save or read the audio file');
+            }
+
+            // Use OpenAI's Whisper API to transcribe the audio
+            $response = OpenAI::audio()->transcribe([
+                'model' => 'whisper-1',
+                'file' => fopen($tempPath, 'r'),
+                'language' => 'ro'
+            ]);
+
+            // Clean up the temporary file
+            if (file_exists($tempPath)) {
+                unlink($tempPath);
+            }
+
+            if (empty($response->text)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Nu am putut transcrie audio-ul. Vă rugăm încercați din nou.'
+                ]);
+            }
+
+            Log::info('Transcription successful', ['text' => $response->text]);
+
+            // Create a new request with the transcribed text
+            $voiceRequest = new Request();
+            $voiceRequest->merge(['text' => $response->text]);
+
+            // Process the transcribed command
+            return $this->processCommand($voiceRequest);
+
+        } catch (\OpenAI\Exceptions\ErrorException $e) {
+            Log::error('OpenAI API Error:', [
+                'message' => $e->getMessage(),
+                'code' => $e->getCode()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Eroare la procesarea audio: ' . $e->getMessage()
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Voice Processing Error:', [
+                'message' => $e->getMessage(),
+                'code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Eroare la procesarea audio: ' . $e->getMessage()
+            ]);
+        }
     }
 }

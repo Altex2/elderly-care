@@ -78,4 +78,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/voice/test', [VoiceCommandController::class, 'test'])->name('voice.test');
 });
 
+Route::post('/voice/process-audio', [VoiceController::class, 'processAudio'])->name('voice.process.audio');
+
 require __DIR__.'/auth.php';
