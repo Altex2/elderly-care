@@ -72,22 +72,32 @@ class VoiceAgentService
             // Format the response message
             $message = '';
 
-            // Add overdue tasks
-            if ($overdueTasks->isNotEmpty()) {
-                $message .= "\nSarcini restante:";
-                foreach ($overdueTasks as $task) {
-                    $timeOverdue = $this->formatTimeInRomanian($userNow, $task->next_occurrence, true);
-                    $message .= "\n- {$task->title} (restant de {$timeOverdue})";
+            // Handle no tasks case first
+            if ($overdueTasks->isEmpty() && $todayTasks->isEmpty()) {
+                if ($nextTask) {
+                    $nextTaskTime = $this->formatTimeInRomanian($userNow, $nextTask->next_occurrence);
+                    $message = "Nu aveți nicio sarcină pentru astăzi. Următoarea sarcină este '{$nextTask->title}' {$nextTaskTime}.";
+                } else {
+                    $message = "Nu aveți nicio sarcină pentru astăzi și nicio sarcină programată pentru viitor.";
                 }
-            }
+            } else {
+                // Add overdue tasks
+                if ($overdueTasks->isNotEmpty()) {
+                    $message .= "\nSarcini restante:";
+                    foreach ($overdueTasks as $task) {
+                        $timeOverdue = $this->formatTimeInRomanian($userNow, $task->next_occurrence, true);
+                        $message .= "\n- {$task->title} (restant de {$timeOverdue})";
+                    }
+                }
 
-            // Add today's tasks
-            if ($todayTasks->isNotEmpty()) {
-                $message .= "\n\nSarcini pentru astăzi:";
-                foreach ($todayTasks as $task) {
-                    $time = $task->next_occurrence->format('H:i');
-                    $timeUntil = $this->formatTimeInRomanian($userNow, $task->next_occurrence);
-                    $message .= "\n- {$task->title} la ora {$time} ({$timeUntil})";
+                // Add today's tasks
+                if ($todayTasks->isNotEmpty()) {
+                    $message .= "\n\nSarcini pentru astăzi:";
+                    foreach ($todayTasks as $task) {
+                        $time = $task->next_occurrence->format('H:i');
+                        $timeUntil = $this->formatTimeInRomanian($userNow, $task->next_occurrence);
+                        $message .= "\n- {$task->title} la ora {$time} ({$timeUntil})";
+                    }
                 }
             }
 
@@ -97,19 +107,12 @@ class VoiceAgentService
                 foreach ($completedTasks as $task) {
                     $completedTime = $task->completed_at->addMinutes($timezoneOffset);
                     $completedAgo = $this->formatTimeInRomanian($userNow, $completedTime, true);
-                    $message .= "\n- {$task->title} (completat {$completedAgo})";
+                    $message .= "\n- {$task->title} (completat acum {$completedAgo})";
                 }
             }
 
-            // Handle no tasks case
-            if ($overdueTasks->isEmpty() && $todayTasks->isEmpty() && $completedTasks->isEmpty()) {
-                if ($nextTask) {
-                    $nextTaskTime = $this->formatTimeInRomanian($userNow, $nextTask->next_occurrence);
-                    $message = "Nu aveți nicio sarcină pentru astăzi. Următoarea sarcină este '{$nextTask->title}' {$nextTaskTime}.";
-                } else {
-                    $message = "Nu aveți nicio sarcină pentru astăzi și nicio sarcină programată pentru viitor.";
-                }
-            } else {
+            // Add instructions for marking tasks as complete
+            if ($overdueTasks->isNotEmpty() || $todayTasks->isNotEmpty()) {
                 $message .= "\n\nPuteți să-mi spuneți 'am făcut' urmat de numele sarcinii pentru a o marca ca fiind completată.";
             }
 

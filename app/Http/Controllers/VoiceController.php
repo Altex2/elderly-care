@@ -194,19 +194,17 @@ class VoiceController extends Controller
         $userNow = now()->addMinutes(request()->input('timezone_offset', 0));
 
         $reminders = auth()->user()->assignedReminders()
-            ->where('status', 'active')
-            ->where('completed', false)
             ->orderBy('next_occurrence')
             ->get();
 
         if ($reminders->isEmpty()) {
             return response()->json([
                 'success' => true,
-                'message' => 'You have no pending reminders.'
+                'message' => 'Nu aveți memento-uri active.'
             ]);
         }
 
-        $message = "Here are your reminders: ";
+        $message = "Memento-urile dvs. sunt: ";
         foreach ($reminders as $reminder) {
             $reminderTime = $reminder->next_occurrence->addMinutes(request()->input('timezone_offset', 0));
             $timeUntil = $userNow->diffForHumans($reminderTime, [
@@ -353,20 +351,82 @@ class VoiceController extends Controller
 
     public function processCommand(Request $request)
     {
-        $request->validate([
-            'text' => 'required|string'
-        ]);
+        try {
+            $request->validate([
+                'text' => 'required|string'
+            ]);
 
-        $user = Auth::user();
-        $timezoneOffset = $request->input('timezone_offset', 0);
-        
-        $result = $this->voiceAgentService->processVoiceCommand(
-            $request->text,
-            $timezoneOffset,
-            $user
-        );
+            $command = strtolower($request->input('text'));
+            $timezoneOffset = $request->input('timezone_offset', 0);
+            
+            // List reminders for a specific time period
+            if (preg_match('/(what|show|list|ce).*(reminders?|tasks?|de facut).*(?:for|in|during|pentru|in)?\s*(today|tomorrow|this week|next week|this month|next month|astazi|maine|saptamana asta|saptamana viitoare|luna asta|luna viitoare)?/', $command, $matches)) {
+                if (!empty($matches[3])) {
+                    return $this->listRemindersForPeriod($matches[3], now()->addMinutes($timezoneOffset));
+                }
+                return $this->listReminders();
+            }
 
-        return response()->json($result);
+            // List reminders by priority
+            if (preg_match('/(what|show|list|arata).*(priority|important|urgent|prioritate).*reminders?/', $command)) {
+                return $this->listPriorityReminders();
+            }
+
+            // List overdue reminders
+            if (str_contains($command, 'overdue') || str_contains($command, 'missed') || str_contains($command, 'restante')) {
+                return $this->listOverdueReminders($request);
+            }
+
+            // Process existing commands
+            if (str_contains($command, 'list') || str_contains($command, 'show') || str_contains($command, 'arata')) {
+                return $this->listReminders();
+            }
+
+            if (str_contains($command, 'complete') || str_contains($command, 'done') || str_contains($command, 'finished') || str_contains($command, 'am facut')) {
+                return $this->completeReminder($command);
+            }
+
+            if (str_contains($command, 'next') || str_contains($command, "what's next") || str_contains($command, 'urmatorul')) {
+                return $this->getNextReminder();
+            }
+
+            if (str_contains($command, 'ajutor') || str_contains($command, 'help')) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Puteți folosi următoarele comenzi:\n" .
+                                "- 'ce am de facut' - pentru a vedea toate memento-urile\n" .
+                                "- 'ce am de facut astazi/maine/saptamana asta' - pentru memento-uri specifice\n" .
+                                "- 'arata memento-urile prioritare' - pentru memento-uri importante\n" .
+                                "- 'arata memento-urile restante' - pentru memento-uri depășite\n" .
+                                "- 'am facut [nume memento]' - pentru a marca un memento ca fiind completat"
+                ]);
+            }
+
+            if (str_contains($command, 'ce am de facut')) {
+                return $this->listReminders();
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => "Nu am înțeles comanda. Încercați să spuneți:\n" .
+                            "'ce am de facut',\n" .
+                            "'ce am de facut astazi/maine',\n" .
+                            "'arata memento-urile prioritare',\n" .
+                            "'arata memento-urile restante', sau\n" .
+                            "'am facut [nume memento]'"
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Voice command processing error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'A apărut o eroare la procesarea comenzii: ' . $e->getMessage()
+            ]);
+        }
     }
 
     public function processAudio(Request $request)

@@ -6,6 +6,7 @@ use App\Http\Controllers\CaregiverController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VoiceController;
 use App\Http\Controllers\VoiceCommandController;
+use App\Http\Controllers\ReminderController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
 
@@ -27,11 +28,20 @@ Route::get('/', function () {
 
 // Authentication routes are handled by auth.php
 
-// Caregiver Routes
+// Protected routes
 Route::middleware(['auth'])->group(function () {
+    // Default dashboard redirect based on role
+    Route::get('/dashboard', function () {
+        $user = auth()->user();
+        if ($user->isCaregiver()) {
+            return redirect()->route('caregiver.dashboard');
+        }
+        return redirect()->route('user.dashboard');
+    })->name('dashboard');
+
     // User routes
     Route::middleware(['role:user'])->group(function () {
-        Route::get('/dashboard', [UserController::class, 'dashboard'])->name('user.dashboard');
+        Route::get('/user/dashboard', [UserController::class, 'dashboard'])->name('user.dashboard');
         Route::post('/voice/process', [VoiceCommandController::class, 'processCommand'])->name('voice.process');
         Route::get('/voice', function () {
             return view('voice.interface');
@@ -50,6 +60,13 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/caregiver/reminders/{reminder}', [CaregiverController::class, 'updateReminder'])->name('caregiver.reminders.update');
         Route::delete('/caregiver/reminders/{reminder}', [CaregiverController::class, 'deleteReminder'])->name('caregiver.reminders.delete');
     });
+
+    // Common routes (accessible by both roles)
+    Route::resource('reminders', ReminderController::class);
+    Route::post('/reminders/{reminder}/complete', [ReminderController::class, 'complete'])->name('reminders.complete');
+    Route::get('/voice', [VoiceController::class, 'index'])->name('voice.interface');
+    Route::post('/voice/process-audio', [VoiceController::class, 'processAudio'])->name('voice.process-audio');
+    Route::post('/voice/process-command', [VoiceController::class, 'processCommand'])->name('voice.process-command');
 });
 
 // Profile Routes
@@ -77,7 +94,5 @@ Route::middleware(['auth'])->group(function () {
     })->name('voice.interface');
     Route::get('/voice/test', [VoiceCommandController::class, 'test'])->name('voice.test');
 });
-
-Route::post('/voice/process-audio', [VoiceController::class, 'processAudio'])->name('voice.process.audio');
 
 require __DIR__.'/auth.php';

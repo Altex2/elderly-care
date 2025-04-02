@@ -14,22 +14,22 @@ class UserController extends Controller
         $userNow = now()->addMinutes($timezoneOffset);
 
         $overdueReminders = auth()->user()->assignedReminders()
-            ->where('status', 'active')
-            ->where('completed', false)
-            ->where('next_occurrence', '<', $userNow)
-            ->orderBy('next_occurrence')
+            ->where('reminders.status', 'active')
+            ->where('reminder_user.completed', false)
+            ->where('reminders.next_occurrence', '<', $userNow)
+            ->orderBy('reminders.next_occurrence')
             ->get();
 
         $activeReminders = auth()->user()->assignedReminders()
-            ->where('status', 'active')
-            ->where('completed', false)
-            ->where('next_occurrence', '>=', $userNow)
-            ->orderBy('next_occurrence')
+            ->where('reminders.status', 'active')
+            ->where('reminder_user.completed', false)
+            ->where('reminders.next_occurrence', '>=', $userNow)
+            ->orderBy('reminders.next_occurrence')
             ->get();
 
         $completedReminders = auth()->user()->assignedReminders()
-            ->where('completed', true)
-            ->orderBy('completed_at', 'desc')
+            ->where('reminder_user.completed', true)
+            ->orderBy('reminder_user.completed_at', 'desc')
             ->take(10)
             ->get();
 

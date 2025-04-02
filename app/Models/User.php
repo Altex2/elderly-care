@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class User extends Authenticatable
 {
@@ -45,14 +48,15 @@ class User extends Authenticatable
     ];
 
     // Patients managed by this caregiver
-    public function patients()
+    public function patients(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'caregiver_patient', 'caregiver_id', 'patient_id')
-                    ->whereRaw('users.role = ?', ['user']);
+                    ->whereRaw('users.role = ?', ['user'])
+                    ->withTimestamps();
     }
 
     // Caregivers managing this patient
-    public function caregivers()
+    public function caregivers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'caregiver_patient', 'patient_id', 'caregiver_id')
                     ->where('role', 'caregiver')
@@ -60,36 +64,46 @@ class User extends Authenticatable
     }
 
     // Get all reminders for a caregiver's patients
-    public function patientReminders()
+    public function patientReminders(): HasManyThrough
     {
         return $this->hasManyThrough(
             Reminder::class,
             CaregiverPatient::class,
-            'caregiver_id', // Foreign key on caregiver_patient table
-            'user_id',      // Foreign key on reminders table
-            'id',           // Local key on users table
-            'patient_id'    // Local key on caregiver_patient table
-        );
+            'caregiver_id',
+            'created_by',
+            'id',
+            'patient_id'
+        )->select('reminders.*')
+         ->join('reminder_user', function($join) {
+             $join->on('reminders.id', '=', 'reminder_user.reminder_id')
+                  ->where('reminder_user.user_id', '=', 'caregiver_patient.patient_id');
+         })
+         ->where('caregiver_patient.caregiver_id', $this->id)
+         ->distinct();
     }
 
     // Get reminders created by this user
-    public function createdReminders()
+    public function createdReminders(): HasMany
     {
         return $this->hasMany(Reminder::class, 'created_by');
     }
 
     // Get reminders assigned to this user
-    public function assignedReminders()
+    public function assignedReminders(): BelongsToMany
     {
-        return $this->hasMany(Reminder::class, 'user_id');
+        return $this->belongsToMany(Reminder::class, 'reminder_user')
+            ->withPivot('completed', 'completed_at')
+            ->withTimestamps()
+            ->where('reminders.status', 'active')
+            ->where('reminder_user.completed', false);
     }
 
-    public function isCaregiver()
+    public function isCaregiver(): bool
     {
         return $this->role === 'caregiver';
     }
 
-    public function isPatient()
+    public function isPatient(): bool
     {
         return $this->role === 'user';
     }

@@ -15,8 +15,15 @@ class CheckRole
                 return response()->json(['message' => 'Unauthorized.'], 403);
             }
 
-            return redirect()->route('dashboard')
-                ->with('error', 'You do not have permission to access this area.');
+            // Redirect based on user role
+            $user = $request->user();
+            if ($user->isCaregiver()) {
+                return redirect()->route('caregiver.dashboard')
+                    ->with('error', 'Nu aveți permisiunea de a accesa această zonă.');
+            } else {
+                return redirect()->route('user.dashboard')
+                    ->with('error', 'Nu aveți permisiunea de a accesa această zonă.');
+            }
         }
 
         return $next($request);

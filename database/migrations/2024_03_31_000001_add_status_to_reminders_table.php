@@ -6,17 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up(): void
     {
         Schema::table('reminders', function (Blueprint $table) {
-            $table->timestamp('next_occurrence')->nullable()->after('status');
+            $table->string('status')->default('active')->after('created_by');
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::table('reminders', function (Blueprint $table) {
-            $table->dropColumn('next_occurrence');
+            $table->dropColumn('status');
         });
     }
-};
+}; 
