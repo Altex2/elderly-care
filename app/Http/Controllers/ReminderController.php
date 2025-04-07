@@ -127,24 +127,104 @@ class ReminderController extends Controller
     {
         $user = auth()->user();
         
+        // Get the user's browser timezone offset from cookie
+        $timezoneOffset = request()->cookie('timezone_offset', 0);
+        
+        // Explicitly create a timestamp adjusted for the user's browser timezone
+        $userNow = now()->addMinutes($timezoneOffset);
+        
+        // Log for debugging
+        Log::info('Completing reminder with browser timezone', [
+            'reminder_id' => $reminder->id,
+            'server_time' => now()->format('Y-m-d H:i:s'),
+            'timezone_offset' => $timezoneOffset,
+            'user_time' => $userNow->format('Y-m-d H:i:s')
+        ]);
+        
         // Update the pivot table for the specific user
-        $reminder->assignedUsers()->updateExistingPivot($user->id, [
+        $reminder->users()->updateExistingPivot($user->id, [
             'completed' => true,
-            'completed_at' => now()
+            'completed_at' => $userNow
         ]);
 
         // Check if all assigned users have completed the reminder
-        $allCompleted = $reminder->assignedUsers()
+        $allCompleted = $reminder->users()
             ->wherePivot('completed', false)
             ->doesntExist();
 
         if ($allCompleted) {
             $reminder->completed = true;
-            $reminder->completed_at = now();
+            $reminder->completed_at = $userNow;
+            
+            // Check if the reminder was completed more than 3 hours before its scheduled time
+            $scheduledTime = Carbon::parse($reminder->next_occurrence);
+            if ($timezoneOffset) {
+                $scheduledTime->addMinutes($timezoneOffset);
+            }
+            
+            $hoursDifference = $scheduledTime->diffInHours($userNow, false);
+            
+            if ($hoursDifference < -3) {
+                // Create a notification for the caregiver
+                $caregiver = User::find($reminder->created_by);
+                if ($caregiver && $caregiver->is_caregiver) {
+                    $caregiver->notifications()->create([
+                        'type' => 'early_completion',
+                        'data' => [
+                            'reminder_id' => $reminder->id,
+                            'user_id' => $user->id,
+                            'user_name' => $user->name,
+                            'reminder_title' => $reminder->title,
+                            'scheduled_time' => $scheduledTime->format('H:i'),
+                            'completed_at' => $userNow->format('H:i'),
+                            'hours_difference' => abs($hoursDifference)
+                        ]
+                    ]);
+                }
+            }
+            
             $reminder->save();
         }
 
         return redirect()->back()
             ->with('success', 'Memento marcat ca fiind completat!');
+    }
+
+    public function acceptEarlyCompletion(Reminder $reminder, Request $request)
+    {
+        $notification = auth()->user()->notifications()->findOrFail($request->notification_id);
+        
+        // Mark the notification as read
+        $notification->markAsRead();
+        
+        // Update the reminder's next occurrence to tomorrow
+        $reminder->next_occurrence = Carbon::parse($reminder->next_occurrence)
+            ->addDay()
+            ->setTimezone($reminder->timezone ?? config('app.timezone'));
+        $reminder->save();
+
+        return redirect()->back()
+            ->with('success', 'Completarea anticipată a fost acceptată. Memento-ul a fost reprogramat pentru ziua următoare.');
+    }
+
+    public function rejectEarlyCompletion(Reminder $reminder, Request $request)
+    {
+        $notification = auth()->user()->notifications()->findOrFail($request->notification_id);
+        
+        // Mark the notification as read
+        $notification->markAsRead();
+        
+        // Reset the reminder's completed status
+        $reminder->users()->updateExistingPivot(auth()->id(), [
+            'completed' => false,
+            'completed_at' => null
+        ]);
+        
+        $reminder->completed = false;
+        $reminder->completed_at = null;
+        $reminder->save();
+
+        return redirect()->back()
+            ->with('success', 'Completarea anticipată a fost respinsă. Memento-ul rămâne programat pentru ora inițială.');
     }
 } 

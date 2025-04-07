@@ -94,8 +94,17 @@ class User extends Authenticatable
         return $this->belongsToMany(Reminder::class, 'reminder_user')
             ->withPivot('completed', 'completed_at')
             ->withTimestamps()
-            ->where('reminders.status', 'active')
-            ->where('reminder_user.completed', false);
+            ->where('reminders.status', 'active');
+    }
+
+    // Get completed reminders for this user
+    public function completedReminders(): BelongsToMany
+    {
+        return $this->belongsToMany(Reminder::class, 'reminder_user')
+            ->withPivot('completed', 'completed_at')
+            ->withTimestamps()
+            ->where('reminder_user.completed', true)
+            ->orderBy('reminder_user.completed_at', 'desc');
     }
 
     public function isCaregiver(): bool
@@ -106,5 +115,25 @@ class User extends Authenticatable
     public function isPatient(): bool
     {
         return $this->role === 'user';
+    }
+
+    public function emergencyEvents(): HasMany
+    {
+        return $this->hasMany(EmergencyEvent::class);
+    }
+
+    public function healthLogs()
+    {
+        return $this->hasMany(HealthLog::class);
+    }
+
+    public function smartHomeDevices()
+    {
+        return $this->hasMany(SmartHomeDevice::class);
+    }
+
+    public function emergencyContacts()
+    {
+        return $this->hasMany(EmergencyContact::class);
     }
 }

@@ -7,6 +7,8 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VoiceController;
 use App\Http\Controllers\VoiceCommandController;
 use App\Http\Controllers\ReminderController;
+use App\Http\Controllers\SmartHomeController;
+use App\Http\Controllers\EmergencyController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
 
@@ -42,10 +44,8 @@ Route::middleware(['auth'])->group(function () {
     // User routes
     Route::middleware(['role:user'])->group(function () {
         Route::get('/user/dashboard', [UserController::class, 'dashboard'])->name('user.dashboard');
+        Route::get('/voice', [VoiceCommandController::class, 'index'])->name('voice.interface');
         Route::post('/voice/process', [VoiceCommandController::class, 'processCommand'])->name('voice.process');
-        Route::get('/voice', function () {
-            return view('voice.interface');
-        })->name('voice.interface');
         Route::post('/reminders/{reminder}/complete', [UserController::class, 'completeReminder'])->name('reminders.complete');
     });
 
@@ -64,9 +64,22 @@ Route::middleware(['auth'])->group(function () {
     // Common routes (accessible by both roles)
     Route::resource('reminders', ReminderController::class);
     Route::post('/reminders/{reminder}/complete', [ReminderController::class, 'complete'])->name('reminders.complete');
-    Route::get('/voice', [VoiceController::class, 'index'])->name('voice.interface');
-    Route::post('/voice/process-audio', [VoiceController::class, 'processAudio'])->name('voice.process-audio');
-    Route::post('/voice/process-command', [VoiceController::class, 'processCommand'])->name('voice.process-command');
+
+    // Smart Home Routes
+    Route::get('/smart-home/devices', [SmartHomeController::class, 'index'])->name('smart-home.devices');
+    Route::put('/smart-home/devices/{device}', [SmartHomeController::class, 'update'])->name('smart-home.devices.update');
+
+    // Emergency Routes
+    Route::get('/emergency/contacts', [EmergencyController::class, 'contacts'])->name('emergency.contacts');
+    Route::post('/emergency/call', [EmergencyController::class, 'initiateCall'])->name('emergency.call');
+    Route::post('/emergency/voice', [EmergencyController::class, 'voice'])->name('emergency.voice');
+    Route::post('/emergency/status-callback', [EmergencyController::class, 'statusCallback'])->name('emergency.status-callback');
+
+    // Early completion notification routes
+    Route::post('/reminders/{reminder}/accept-early-completion', [ReminderController::class, 'acceptEarlyCompletion'])
+        ->name('reminders.accept-early-completion');
+    Route::post('/reminders/{reminder}/reject-early-completion', [ReminderController::class, 'rejectEarlyCompletion'])
+        ->name('reminders.reject-early-completion');
 });
 
 // Profile Routes

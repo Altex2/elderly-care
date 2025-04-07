@@ -6,23 +6,27 @@ use App\Models\Reminder;
 use App\Services\VoiceService;
 use App\Services\AIPersonalizationService;
 use App\Services\VoiceAgentService;
+use App\Services\VoiceCommandService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use OpenAI\Laravel\Facades\OpenAI;
+use Illuminate\Support\Facades\Storage;
 
 class VoiceController extends Controller
 {
     protected $voiceService;
     protected $aiService;
     protected $voiceAgentService;
+    protected $voiceCommandService;
 
-    public function __construct(VoiceService $voiceService, AIPersonalizationService $aiService, VoiceAgentService $voiceAgentService)
+    public function __construct(VoiceService $voiceService, AIPersonalizationService $aiService, VoiceAgentService $voiceAgentService, VoiceCommandService $voiceCommandService)
     {
         $this->voiceService = $voiceService;
         $this->aiService = $aiService;
         $this->voiceAgentService = $voiceAgentService;
+        $this->voiceCommandService = $voiceCommandService;
     }
 
     public function index()
@@ -292,7 +296,6 @@ class VoiceController extends Controller
         $testCommands = [
             'Basic Commands' => [
                 'List my reminders',
-                'What\'s next?',
                 'Show my reminders'
             ],
             'Time-based Commands' => [
@@ -309,19 +312,19 @@ class VoiceController extends Controller
             ]
         ];
 
-        $testingDiv = '<div class="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900 rounded-lg">';
-        $testingDiv .= '<h4 class="font-medium text-yellow-800 dark:text-yellow-200 mb-4">Testing Mode (No HTTPS)</h4>';
+        $testingDiv = '<div class="mt-4 p-4 bg-yellow-50 rounded-lg">';
+        $testingDiv .= '<h4 class="font-medium text-yellow-800 mb-4">Testing Mode (No HTTPS)</h4>';
 
         foreach ($testCommands as $category => $commands) {
             $testingDiv .= "<div class='mb-4'>";
-            $testingDiv .= "<h5 class='text-sm font-medium text-yellow-700 dark:text-yellow-300 mb-2'>{$category}</h5>";
+            $testingDiv .= "<h5 class='text-sm font-medium text-yellow-700 mb-2'>{$category}</h5>";
             $testingDiv .= "<div class='space-y-2'>";
 
             foreach ($commands as $cmd) {
                 $testingDiv .= "
                     <button
                         onclick='processVoiceCommand(\"" . addslashes($cmd) . "\")'
-                        class='block w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded border border-yellow-300 dark:border-yellow-700 text-sm'>
+                        class='block w-full text-left px-3 py-2 bg-white hover:bg-gray-50 rounded border border-yellow-300 text-sm'>
                         Test: \"{$cmd}\"
                     </button>";
             }
@@ -331,14 +334,14 @@ class VoiceController extends Controller
         // Add custom complete reminder input
         $testingDiv .= '
             <div class="mt-6">
-                <h5 class="text-sm font-medium text-yellow-700 dark:text-yellow-300 mb-2">Complete a Specific Reminder:</h5>
+                <h5 class="text-sm font-medium text-yellow-700 mb-2">Complete a Specific Reminder:</h5>
                 <div class="flex space-x-2">
                     <input type="text"
                            id="customReminderInput"
                            placeholder="Enter reminder name"
-                           class="flex-1 px-3 py-2 bg-white dark:bg-gray-800 rounded border border-yellow-300 dark:border-yellow-700 text-sm">
+                           class="flex-1 px-3 py-2 bg-white rounded border border-yellow-300 text-sm">
                     <button onclick="completeCustomReminder()"
-                            class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
+                            class="btn btn-success">
                         Complete
                     </button>
                 </div>
@@ -351,172 +354,47 @@ class VoiceController extends Controller
 
     public function processCommand(Request $request)
     {
+        $request->validate([
+            'text' => 'required|string'
+        ]);
+
         try {
-            $request->validate([
-                'text' => 'required|string'
-            ]);
-
-            $command = strtolower($request->input('text'));
-            $timezoneOffset = $request->input('timezone_offset', 0);
-            
-            // List reminders for a specific time period
-            if (preg_match('/(what|show|list|ce).*(reminders?|tasks?|de facut).*(?:for|in|during|pentru|in)?\s*(today|tomorrow|this week|next week|this month|next month|astazi|maine|saptamana asta|saptamana viitoare|luna asta|luna viitoare)?/', $command, $matches)) {
-                if (!empty($matches[3])) {
-                    return $this->listRemindersForPeriod($matches[3], now()->addMinutes($timezoneOffset));
-                }
-                return $this->listReminders();
-            }
-
-            // List reminders by priority
-            if (preg_match('/(what|show|list|arata).*(priority|important|urgent|prioritate).*reminders?/', $command)) {
-                return $this->listPriorityReminders();
-            }
-
-            // List overdue reminders
-            if (str_contains($command, 'overdue') || str_contains($command, 'missed') || str_contains($command, 'restante')) {
-                return $this->listOverdueReminders($request);
-            }
-
-            // Process existing commands
-            if (str_contains($command, 'list') || str_contains($command, 'show') || str_contains($command, 'arata')) {
-                return $this->listReminders();
-            }
-
-            if (str_contains($command, 'complete') || str_contains($command, 'done') || str_contains($command, 'finished') || str_contains($command, 'am facut')) {
-                return $this->completeReminder($command);
-            }
-
-            if (str_contains($command, 'next') || str_contains($command, "what's next") || str_contains($command, 'urmatorul')) {
-                return $this->getNextReminder();
-            }
-
-            if (str_contains($command, 'ajutor') || str_contains($command, 'help')) {
-                return response()->json([
-                    'success' => true,
-                    'message' => "Puteți folosi următoarele comenzi:\n" .
-                                "- 'ce am de facut' - pentru a vedea toate memento-urile\n" .
-                                "- 'ce am de facut astazi/maine/saptamana asta' - pentru memento-uri specifice\n" .
-                                "- 'arata memento-urile prioritare' - pentru memento-uri importante\n" .
-                                "- 'arata memento-urile restante' - pentru memento-uri depășite\n" .
-                                "- 'am facut [nume memento]' - pentru a marca un memento ca fiind completat"
-                ]);
-            }
-
-            if (str_contains($command, 'ce am de facut')) {
-                return $this->listReminders();
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => "Nu am înțeles comanda. Încercați să spuneți:\n" .
-                            "'ce am de facut',\n" .
-                            "'ce am de facut astazi/maine',\n" .
-                            "'arata memento-urile prioritare',\n" .
-                            "'arata memento-urile restante', sau\n" .
-                            "'am facut [nume memento]'"
-            ]);
-
+            $result = $this->voiceCommandService->processCommand($request->text, auth()->user());
+            return response()->json($result);
         } catch (\Exception $e) {
-            Log::error('Voice command processing error:', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
             return response()->json([
                 'success' => false,
-                'message' => 'A apărut o eroare la procesarea comenzii: ' . $e->getMessage()
-            ]);
+                'message' => 'A apărut o eroare la procesarea comenzii.'
+            ], 500);
         }
     }
 
     public function processAudio(Request $request)
     {
+        $request->validate([
+            'audio' => 'required|file|mimes:webm,mp3,wav|max:10240'
+        ]);
+
         try {
-            if (!$request->hasFile('audio')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Nu s-a primit niciun fișier audio.'
-                ]);
-            }
-
-            $audioFile = $request->file('audio');
+            // Store the audio file temporarily
+            $path = $request->file('audio')->store('temp/voice', 'public');
             
-            // Log the incoming file details
-            Log::info('Received audio file', [
-                'name' => $audioFile->getClientOriginalName(),
-                'mime' => $audioFile->getMimeType(),
-                'size' => $audioFile->getSize(),
-                'extension' => $audioFile->getClientOriginalExtension()
-            ]);
-
-            // Create temp directory if it doesn't exist
-            $tempDir = storage_path('app/temp');
-            if (!file_exists($tempDir)) {
-                mkdir($tempDir, 0755, true);
-            }
-
-            // Save with original extension
-            $extension = $audioFile->getClientOriginalExtension() ?: 'webm';
-            $tempPath = $tempDir . '/' . uniqid('audio_') . '.' . $extension;
+            // TODO: Implement speech-to-text conversion
+            // For now, we'll use a mock response
+            $text = "Reamintește-mi să iau medicamentele la ora 10";
             
-            // Move the uploaded file
-            $audioFile->move(dirname($tempPath), basename($tempPath));
-
-            // Verify the file exists and is readable
-            if (!file_exists($tempPath) || !is_readable($tempPath)) {
-                throw new \Exception('Could not save or read the audio file');
-            }
-
-            // Use OpenAI's Whisper API to transcribe the audio
-            $response = OpenAI::audio()->transcribe([
-                'model' => 'whisper-1',
-                'file' => fopen($tempPath, 'r'),
-                'language' => 'ro'
-            ]);
-
+            // Process the command
+            $result = $this->voiceCommandService->processCommand($text, auth()->user());
+            
             // Clean up the temporary file
-            if (file_exists($tempPath)) {
-                unlink($tempPath);
-            }
-
-            if (empty($response->text)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Nu am putut transcrie audio-ul. Vă rugăm încercați din nou.'
-                ]);
-            }
-
-            Log::info('Transcription successful', ['text' => $response->text]);
-
-            // Create a new request with the transcribed text
-            $voiceRequest = new Request();
-            $voiceRequest->merge(['text' => $response->text]);
-
-            // Process the transcribed command
-            return $this->processCommand($voiceRequest);
-
-        } catch (\OpenAI\Exceptions\ErrorException $e) {
-            Log::error('OpenAI API Error:', [
-                'message' => $e->getMessage(),
-                'code' => $e->getCode()
-            ]);
+            Storage::disk('public')->delete($path);
             
-            return response()->json([
-                'success' => false,
-                'message' => 'Eroare la procesarea audio: ' . $e->getMessage()
-            ]);
+            return response()->json($result);
         } catch (\Exception $e) {
-            Log::error('Voice Processing Error:', [
-                'message' => $e->getMessage(),
-                'code' => $e->getCode(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
-            
             return response()->json([
                 'success' => false,
-                'message' => 'Eroare la procesarea audio: ' . $e->getMessage()
-            ]);
+                'message' => 'A apărut o eroare la procesarea înregistrării vocale.'
+            ], 500);
         }
     }
 }

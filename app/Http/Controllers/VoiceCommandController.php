@@ -2,42 +2,66 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\VoiceAgentService;
+use App\Services\VoiceCommandService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class VoiceCommandController extends Controller
 {
-    protected $voiceAgentService;
+    protected $voiceCommandService;
 
-    public function __construct(VoiceAgentService $voiceAgentService)
+    public function __construct(VoiceCommandService $voiceCommandService)
     {
-        $this->voiceAgentService = $voiceAgentService;
+        $this->voiceCommandService = $voiceCommandService;
+    }
+
+    public function index()
+    {
+        return view('voice.interface');
     }
 
     public function processCommand(Request $request)
     {
         $request->validate([
-            'command' => 'required|string',
-            'timezone_offset' => 'required|integer'
+            'audio' => 'required|file|mimes:webm,wav,mp3,ogg|max:10240'
         ]);
 
         $user = Auth::user();
         
-        if (!$user || $user->role !== 'user') {
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized access'
-            ], 403);
+                'error' => 'Nu sunteți autentificat.'
+            ], 401);
         }
 
-        $result = $this->voiceAgentService->processVoiceCommand(
-            $request->command,
-            $request->timezone_offset,
-            $user
-        );
-
-        return response()->json($result);
+        try {
+            // Store the audio file temporarily
+            $path = $request->file('audio')->store('temp/voice', 'public');
+            
+            // Create a new instance of the service with the authenticated user
+            $voiceService = new VoiceCommandService($user);
+            
+            // Process the command
+            $result = $voiceService->processCommand(storage_path('app/public/' . $path));
+            
+            // Clean up the temporary file
+            Storage::disk('public')->delete($path);
+            
+            return response()->json($result);
+        } catch (\Exception $e) {
+            Log::error('Voice command processing error:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'A apărut o eroare la procesarea comenzii vocale.'
+            ], 500);
+        }
     }
 
     public function test()

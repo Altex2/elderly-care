@@ -2,104 +2,222 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-
-        <title>{{ config('app.name', 'Helper Buddy') }}</title>
+        <link rel="icon" href="{{ asset('images/logo.png') }}" type="image/png">
+        <title>{{ config('app.name', 'Reminder Buddy') }}</title>
 
         <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+        <!-- Styles -->
+        <style>
+            [x-cloak] { display: none !important; }
+            
+            :root {
+                /* Base Colors */
+                --color-primary: #0056b3;
+                --color-primary-hover: #004494;
+                --color-secondary: #28a745;
+                --color-danger: #dc3545;
+                --color-warning: #ffc107;
+                --color-info: #17a2b8;
+                
+                /* Text Colors */
+                --color-text: #212529;
+                --color-text-light: #6c757d;
+                --color-text-white: #ffffff;
+                
+                /* Background Colors */
+                --color-bg-primary: #ffffff;
+                --color-bg-secondary: #f8f9fa;
+                --color-bg-tertiary: #e9ecef;
+                
+                /* Spacing */
+                --spacing-xs: 0.5rem;
+                --spacing-sm: 1rem;
+                --spacing-md: 1.5rem;
+                --spacing-lg: 2rem;
+                --spacing-xl: 3rem;
+                
+                /* Typography */
+                --font-size-xs: 0.875rem;
+                --font-size-sm: 1rem;
+                --font-size-md: 1.25rem;
+                --font-size-lg: 1.5rem;
+                --font-size-xl: 2rem;
+                
+                --line-height-base: 1.5;
+                --border-radius: 0.5rem;
+            }
+
+            body {
+                font-family: 'Open Sans', sans-serif;
+                font-size: var(--font-size-sm);
+                line-height: var(--line-height-base);
+                color: var(--color-text);
+                background-color: var(--color-bg-secondary);
+            }
+
+            /* Container */
+            .container {
+                width: 100%;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 0 var(--spacing-sm);
+            }
+
+            /* Cards */
+            .card {
+                background-color: var(--color-bg-primary);
+                border-radius: var(--border-radius);
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                padding: var(--spacing-md);
+                margin-bottom: var(--spacing-md);
+            }
+
+            /* Buttons */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: var(--spacing-sm) var(--spacing-md);
+                font-size: var(--font-size-sm);
+                font-weight: 600;
+                border-radius: var(--border-radius);
+                cursor: pointer;
+                transition: all 0.2s;
+                min-height: 48px;
+                min-width: 120px;
+            }
+
+            .btn-primary {
+                background-color: var(--color-primary);
+                color: var(--color-text-white);
+                border: none;
+            }
+
+            .btn-primary:hover {
+                background-color: var(--color-primary-hover);
+            }
+
+            /* Form Controls */
+            input, select, textarea {
+                width: 100%;
+                padding: var(--spacing-sm);
+                font-size: var(--font-size-sm);
+                border: 2px solid var(--color-bg-tertiary);
+                border-radius: var(--border-radius);
+                background-color: var(--color-bg-primary);
+                color: var(--color-text);
+                min-height: 48px;
+            }
+
+            input:focus, select:focus, textarea:focus {
+                outline: none;
+                border-color: var(--color-primary);
+            }
+
+            /* Navigation */
+            .nav-link {
+                display: flex;
+                align-items: center;
+                padding: var(--spacing-sm) var(--spacing-md);
+                color: var(--color-text);
+                text-decoration: none;
+                font-size: var(--font-size-sm);
+                font-weight: 600;
+                gap: var(--spacing-xs);
+            }
+
+            .nav-link:hover {
+                background-color: var(--color-bg-tertiary);
+            }
+
+            .nav-link.active {
+                color: var(--color-primary);
+            }
+
+            /* Alerts */
+            .alert {
+                padding: var(--spacing-md);
+                border-radius: var(--border-radius);
+                margin-bottom: var(--spacing-md);
+                font-size: var(--font-size-sm);
+            }
+
+            .alert-success {
+                background-color: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+            }
+
+            .alert-error {
+                background-color: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+            }
+
+            /* Responsive Grid */
+            .grid {
+                display: grid;
+                gap: var(--spacing-md);
+            }
+
+            @media (min-width: 640px) {
+                .grid-cols-2 {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+
+            @media (min-width: 1024px) {
+                .grid-cols-3 {
+                    grid-template-columns: repeat(3, 1fr);
+                }
+            }
+
+            /* Typography */
+            h1, h2, h3, h4, h5, h6 {
+                color: var(--color-text);
+                font-weight: 700;
+                margin-bottom: var(--spacing-sm);
+            }
+
+            h1 { font-size: var(--font-size-xl); }
+            h2 { font-size: var(--font-size-lg); }
+            h3 { font-size: var(--font-size-md); }
+            h4 { font-size: var(--font-size-sm); }
+
+            p {
+                margin-bottom: var(--spacing-sm);
+                line-height: var(--line-height-base);
+            }
+        </style>
     </head>
-    <body class="font-sans antialiased h-full bg-gray-50 dark:bg-gray-900">
-        <div class="min-h-screen">
-            @if(auth()->user()->role === 'caregiver')
+    <body class="h-full">
+        <div class="min-h-full">
+            @if (auth()->check())
                 @include('layouts.navigation')
-            @else
-                @include('layouts.user-navigation')
             @endif
 
             <!-- Page Heading -->
             @if (isset($header))
-                <header class="bg-white dark:bg-gray-800 shadow">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                <header class="bg-white shadow">
+                    <div class="container py-6">
                         {{ $header }}
                     </div>
                 </header>
             @endif
 
-            <!-- Flash Messages -->
-            @if (session('success'))
-                <div x-data="{ show: true }"
-                     x-show="show"
-                     x-transition:enter="transform ease-out duration-300 transition"
-                     x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
-                     x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
-                     x-transition:leave="transition ease-in duration-100"
-                     x-transition:leave-start="opacity-100"
-                     x-transition:leave-end="opacity-0"
-                     @click.away="show = false"
-                     class="fixed bottom-4 right-4 z-50 flex items-center p-4 mb-4 rounded-lg shadow-lg bg-green-50 dark:bg-gray-800 max-w-sm">
-                    <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 text-green-500 bg-green-100 rounded-lg dark:bg-green-800 dark:text-green-200">
-                        <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z"/>
-                        </svg>
-                        <span class="sr-only">Success icon</span>
-                    </div>
-                    <div class="ml-3 text-sm font-normal text-gray-800 dark:text-gray-300">{{ session('success') }}</div>
-                    <button @click="show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-green-50 text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex items-center justify-center h-8 w-8 dark:text-gray-500 dark:hover:text-white dark:bg-gray-800 dark:hover:bg-gray-700" aria-label="Close">
-                        <span class="sr-only">Close</span>
-                        <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
-                        </svg>
-                    </button>
-                </div>
-            @endif
-
-            <!-- Error Messages -->
-            @if (session('error'))
-                <div x-data="{ show: true }"
-                     x-show="show"
-                     x-transition:enter="transform ease-out duration-300 transition"
-                     x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
-                     x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
-                     x-transition:leave="transition ease-in duration-100"
-                     x-transition:leave-start="opacity-100"
-                     x-transition:leave-end="opacity-0"
-                     @click.away="show = false"
-                     class="fixed bottom-4 right-4 z-50 flex items-center p-4 mb-4 rounded-lg shadow-lg bg-red-50 dark:bg-gray-800">
-                    <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 text-red-500 bg-red-100 rounded-lg dark:bg-red-800 dark:text-red-200">
-                        <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 11.793a1 1 0 1 1-1.414 1.414L10 11.414l-2.293 2.293a1 1 0 0 1-1.414-1.414L8.586 10 6.293 7.707a1 1 0 0 1 1.414-1.414L10 8.586l2.293-2.293a1 1 0 0 1 1.414 1.414L11.414 10l2.293 2.293Z"/>
-                        </svg>
-                        <span class="sr-only">Error icon</span>
-                    </div>
-                    <div class="ml-3 text-sm font-normal text-gray-800 dark:text-gray-300">{{ session('error') }}</div>
-                    <button @click="show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-red-50 text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex items-center justify-center h-8 w-8 dark:text-gray-500 dark:hover:text-white dark:bg-gray-800 dark:hover:bg-gray-700" aria-label="Close">
-                        <span class="sr-only">Close</span>
-                        <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
-                        </svg>
-                    </button>
-                </div>
-            @endif
-
             <!-- Page Content -->
-            <main class="flex-1">
-                {{ $slot ?? '' }}
+            <main class="container py-6">
+                {{ $slot }}
             </main>
-
-            <!-- Footer -->
-            <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                    <div class="text-center text-sm text-gray-500 dark:text-gray-400">
-                        © {{ date('Y') }} Helper Buddy. All rights reserved.
-                    </div>
-                </div>
-            </footer>
         </div>
 
         @stack('scripts')
