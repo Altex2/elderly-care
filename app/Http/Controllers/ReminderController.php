@@ -7,6 +7,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use App\Notifications\ReminderMissed;
+use Illuminate\Support\Facades\Auth;
 
 class ReminderController extends Controller
 {
@@ -127,18 +129,14 @@ class ReminderController extends Controller
     {
         $user = auth()->user();
         
-        // Get the user's browser timezone offset from cookie
-        $timezoneOffset = request()->cookie('timezone_offset', 0);
-        
-        // Explicitly create a timestamp adjusted for the user's browser timezone
-        $userNow = now()->addMinutes($timezoneOffset);
+        // Use Romania timezone directly rather than relying on browser offset
+        $userNow = now()->setTimezone('Europe/Bucharest');
         
         // Log for debugging
-        Log::info('Completing reminder with browser timezone', [
+        Log::info('Completing reminder with Romania timezone', [
             'reminder_id' => $reminder->id,
             'server_time' => now()->format('Y-m-d H:i:s'),
-            'timezone_offset' => $timezoneOffset,
-            'user_time' => $userNow->format('Y-m-d H:i:s')
+            'romania_time' => $userNow->format('Y-m-d H:i:s')
         ]);
         
         // Update the pivot table for the specific user
@@ -153,36 +151,36 @@ class ReminderController extends Controller
             ->doesntExist();
 
         if ($allCompleted) {
-            $reminder->completed = true;
-            $reminder->completed_at = $userNow;
-            
-            // Check if the reminder was completed more than 3 hours before its scheduled time
-            $scheduledTime = Carbon::parse($reminder->next_occurrence);
-            if ($timezoneOffset) {
-                $scheduledTime->addMinutes($timezoneOffset);
-            }
-            
-            $hoursDifference = $scheduledTime->diffInHours($userNow, false);
-            
-            if ($hoursDifference < -3) {
-                // Create a notification for the caregiver
-                $caregiver = User::find($reminder->created_by);
-                if ($caregiver && $caregiver->is_caregiver) {
-                    $caregiver->notifications()->create([
-                        'type' => 'early_completion',
-                        'data' => [
-                            'reminder_id' => $reminder->id,
-                            'user_id' => $user->id,
-                            'user_name' => $user->name,
-                            'reminder_title' => $reminder->title,
-                            'scheduled_time' => $scheduledTime->format('H:i'),
-                            'completed_at' => $userNow->format('H:i'),
-                            'hours_difference' => abs($hoursDifference)
-                        ]
-                    ]);
+            // Calculate next occurrence based on frequency
+            if ($reminder->frequency !== 'once') {
+                $originalTime = Carbon::parse($reminder->start_date);
+                
+                switch ($reminder->frequency) {
+                    case 'daily':
+                        $nextDate = $userNow->copy()->addDay();
+                        break;
+                    case 'weekly':
+                        $nextDate = $userNow->copy()->addWeek();
+                        break;
+                    case 'monthly':
+                        $nextDate = $userNow->copy()->addMonth();
+                        break;
+                    case 'yearly':
+                        $nextDate = $userNow->copy()->addYear();
+                        break;
+                    default:
+                        $nextDate = null;
+                }
+
+                if ($nextDate) {
+                    // Keep the original hour and minute
+                    $nextDate->setTime($originalTime->hour, $originalTime->minute);
+                    $reminder->next_occurrence = $nextDate;
                 }
             }
-            
+
+            $reminder->completed = true;
+            $reminder->completed_at = $userNow;
             $reminder->save();
         }
 
@@ -226,5 +224,30 @@ class ReminderController extends Controller
 
         return redirect()->back()
             ->with('success', 'Completarea anticipată a fost respinsă. Memento-ul rămâne programat pentru ora inițială.');
+    }
+
+    public function checkMissedReminders()
+    {
+        $now = now();
+        
+        // Get all active reminders that are more than 1 hour past their scheduled time
+        $missedReminders = Reminder::where('status', 'active')
+            ->where('completed_at', null)
+            ->whereRaw('DATE_ADD(next_occurrence, INTERVAL 1 HOUR) < ?', [$now])
+            ->get();
+
+        foreach ($missedReminders as $reminder) {
+            // Get the patient and their caregiver
+            $patient = $reminder->assignedUsers()->where('role', 'user')->first();
+            if (!$patient) continue;
+
+            $caregiver = $patient->caregiver;
+            if (!$caregiver) continue;
+
+            // Send notification to caregiver
+            $caregiver->notify(new ReminderMissed($reminder, $patient));
+        }
+
+        return response()->json(['success' => true]);
     }
 } 

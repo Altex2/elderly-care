@@ -59,7 +59,9 @@ class CaregiverController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'schedule' => 'required|string',
+            'frequency' => 'required|string|in:daily,weekly,monthly,yearly,once',
+            'start_date' => 'required|date',
+            'end_date' => 'nullable|date|after:start_date',
             'priority' => 'required|integer|min:1|max:5',
             'user_id' => 'required|exists:users,id'
         ]);
@@ -80,15 +82,19 @@ class CaregiverController extends Controller
         $reminder = Reminder::create([
             'title' => $request->title,
             'description' => $request->description,
-            'schedule' => $request->schedule,
+            'frequency' => $request->frequency,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
             'priority' => $request->priority,
-            'user_id' => $request->user_id,
             'created_by' => $caregiver->id,
             'status' => 'active',
-            'next_occurrence' => now() // Add a default value for next_occurrence
+            'next_occurrence' => now()
         ]);
 
-        // Calculate the next occurrence based on the schedule
+        // Assign the reminder to the patient
+        $reminder->users()->attach($request->user_id);
+
+        // Calculate the next occurrence based on the frequency
         $reminder->next_occurrence = $reminder->calculateNextOccurrence();
         $reminder->save();
 

@@ -70,25 +70,41 @@
     </div>
 
     <!-- Mobile menu -->
-    <div x-show="open" x-cloak class="sm:hidden" @click.away="open = false">
-        <div class="pt-2 pb-3 px-4">
-            <a href="{{ route('dashboard') }}" class="block py-3 px-4 text-lg text-center rounded-md mb-2 {{ request()->routeIs('dashboard') || request()->routeIs('caregiver.dashboard') ? 'bg-primary text-white font-bold' : 'bg-gray-100 text-gray-800' }}">
-                Tablou de bord
-            </a>
+    <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
+        <div class="pt-2 pb-3 space-y-1">
+            <x-responsive-nav-link :href="route('caregiver.dashboard')" :active="request()->routeIs('caregiver.dashboard')">
+                {{ __('Panou de control') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('caregiver.reminders')" :active="request()->routeIs('caregiver.reminders')">
+                {{ __('Memento-uri') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('caregiver.patients')" :active="request()->routeIs('caregiver.patients')">
+                {{ __('Pacienți') }}
+            </x-responsive-nav-link>
+        </div>
 
-            @if(auth()->user()->role === 'caregiver')
-                <a href="{{ route('caregiver.reminders') }}" class="block py-3 px-4 text-lg text-center rounded-md mb-2 {{ request()->routeIs('caregiver.reminders') ? 'bg-primary text-white font-bold' : 'bg-gray-100 text-gray-800' }}">
-                    Gestionează Memento-uri
-                </a>
-            @else
-                <a href="{{ route('voice.interface') }}" class="block py-3 px-4 text-lg text-center rounded-md mb-2 {{ request()->routeIs('voice.interface') ? 'bg-primary text-white font-bold' : 'bg-gray-100 text-gray-800' }}">
-                    Asistent Vocal
-                </a>
-            @endif
+        <!-- Responsive Settings Options -->
+        <div class="pt-4 pb-1 border-t border-gray-200">
+            <div class="px-4">
+                <div class="font-medium text-base text-gray-800">{{ Auth::user()->name }}</div>
+                <div class="font-medium text-sm text-gray-500">{{ Auth::user()->email }}</div>
+            </div>
 
-            <a href="{{ route('profile.edit') }}" class="block py-3 px-4 text-lg text-center rounded-md mb-2 {{ request()->routeIs('profile.edit') ? 'bg-primary text-white font-bold' : 'bg-gray-100 text-gray-800' }}">
-                Profil
-            </a>
+            <div class="mt-3 space-y-1">
+                <x-responsive-nav-link :href="route('profile.edit')">
+                    {{ __('Profil') }}
+                </x-responsive-nav-link>
+
+                <!-- Authentication -->
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <x-responsive-nav-link :href="route('logout')"
+                            onclick="event.preventDefault();
+                                        this.closest('form').submit();">
+                        {{ __('Deconectare') }}
+                    </x-responsive-nav-link>
+                </form>
+            </div>
         </div>
     </div>
 </nav>

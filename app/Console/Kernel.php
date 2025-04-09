@@ -13,6 +13,10 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('reminders:process')->everyMinute();
+        $schedule->command('reminders:check-missed')->everyFiveMinutes();
+        $schedule->call(function () {
+            app(\App\Http\Controllers\ReminderController::class)->checkMissedReminders();
+        })->hourly();
     }
 
     /**
@@ -27,5 +31,6 @@ class Kernel extends ConsoleKernel
 
     protected $commands = [
         Commands\ProcessReminders::class,
+        Commands\CheckMissedReminders::class,
     ];
 }

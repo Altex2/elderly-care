@@ -1,7 +1,5 @@
 <?php
 
-namespace Database\Migrations;
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -11,14 +9,15 @@ return new class extends Migration
     public function up()
     {
         Schema::create('notifications', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('reminder_id')->constrained()->onDelete('cascade');
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->uuid('id')->primary();
             $table->string('type');
-            $table->text('content');
-            $table->string('audio_file')->nullable();
-            $table->string('status');
+            $table->string('notifiable_type');
+            $table->unsignedBigInteger('notifiable_id');
+            $table->text('data');
+            $table->timestamp('read_at')->nullable();
             $table->timestamps();
+
+            $table->index(['notifiable_type', 'notifiable_id']);
         });
     }
 

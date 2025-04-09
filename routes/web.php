@@ -59,6 +59,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/caregiver/reminders', [CaregiverController::class, 'createReminder'])->name('caregiver.reminders.create');
         Route::put('/caregiver/reminders/{reminder}', [CaregiverController::class, 'updateReminder'])->name('caregiver.reminders.update');
         Route::delete('/caregiver/reminders/{reminder}', [CaregiverController::class, 'deleteReminder'])->name('caregiver.reminders.delete');
+        Route::post('/caregiver/reminders/{reminder}/accept-missed', [CaregiverController::class, 'acceptMissedReminder'])->name('caregiver.reminders.accept-missed');
+        Route::post('/caregiver/reminders/{reminder}/deny-missed', [CaregiverController::class, 'denyMissedReminder'])->name('caregiver.reminders.deny-missed');
     });
 
     // Common routes (accessible by both roles)

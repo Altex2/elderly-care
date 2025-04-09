@@ -22,7 +22,6 @@ class ReminderController extends Controller
                     'id' => $reminder->id,
                     'title' => $reminder->title,
                     'description' => $reminder->description,
-                    'schedule' => $reminder->schedule,
                     'priority' => $reminder->priority,
                     'next_occurrence' => $reminder->next_occurrence,
                     'is_overdue' => $reminder->next_occurrence < $userNow,

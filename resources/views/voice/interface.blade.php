@@ -1,8 +1,8 @@
 <x-app-layout>
     <x-slot name="header">
-        <h1 class="text-2xl font-bold text-primary">
-            Comenzi Vocale
-        </h1>
+        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+            {{ __('Asistent Vocal') }}
+        </h2>
     </x-slot>
 
     <div class="space-y-6">
@@ -12,12 +12,12 @@
                     class="w-32 h-32 bg-primary rounded-full flex items-center justify-center mx-auto mb-4 hover:bg-primary-hover transition-colors duration-200 bg-gray-600 hover:bg-gray-700">
                 <svg class="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                </svg>
-            </button>
+                                </svg>
+                        </button>
             <p id="recordingStatus" class="text-xl text-gray-600 mb-4">
                 Apăsați butonul pentru a începe înregistrarea
-            </p>
-        </div>
+                        </p>
+                    </div>
 
         <!-- Common Commands -->
         <div class="card">
@@ -30,16 +30,16 @@
                             <span class="text-primary mr-2">•</span> "Ce am de făcut?"
                         </li>
                         <li class="flex items-center">
-                            <span class="text-primary mr-2">•</span> "Ce am de făcut azi?"
+                            <span class="text-primary mr-2">•</span> "Ce am de făcut azi / mâine / săptămâna acesta / săptămâna următoare / luna aceasta ?"
                         </li>
                         <li class="flex items-center">
-                            <span class="text-primary mr-2">•</span> "Memento nou la ora 14:30 [acțiune/medicament]"
+                            <span class="text-primary mr-2">•</span> "Memento nou la ora [ora] [acțiune/medicament]"
                         </li>
                         <li class="flex items-center">
                             <span class="text-primary mr-2">•</span> "Am făcut / am luat [acțiune/medicament]"
                         </li>
                     </ul>
-                </div>
+                    </div>
                 <div class="p-4 bg-gray-50 rounded-lg">
                     <h3 class="text-lg font-medium text-gray-900 mb-2">Urgență</h3>
                     <ul class="space-y-3 text-md text-gray-600">

@@ -13,7 +13,7 @@
         // Function to format times in user's timezone
         function formatTimeInUserTimezone(dateString) {
             const date = new Date(dateString);
-            return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            return date.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit', hour12: false });
         }
 
         // Function to format full datetime in user's timezone
@@ -27,8 +27,8 @@
                     return dateString; // Return original if invalid
                 }
                 
-                return date.toLocaleDateString() + ' ' + 
-                       date.toLocaleTimeString([], { 
+                return date.toLocaleDateString('ro-RO') + ' ' + 
+                       date.toLocaleTimeString('ro-RO', { 
                            hour: '2-digit', 
                            minute: '2-digit',
                            hour12: false 
@@ -124,17 +124,27 @@
                                 <div class="flex justify-between items-start">
                                     <div>
                                         <h3 class="font-semibold text-red-900">{{ $reminder->title }}</h3>
-                                        <p class="text-sm text-red-700">
+                                        @if($reminder->description)
+                                            <p class="text-sm text-red-800 mt-1">{{ $reminder->description }}</p>
+                                        @endif
+                                        <p class="text-sm text-red-700 mt-2">
                                             Programat pentru <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
                                             (<span data-timestamp="{{ $reminder->next_occurrence }}" data-type="diff"></span> restant)
                                         </p>
                                     </div>
-                                    <form action="{{ route('reminders.complete', $reminder->id) }}" method="POST" class="ml-4">
-                                        @csrf
-                                        <button type="submit" class="btn btn-danger">
-                                            Completează
-                                        </button>
-                                    </form>
+                                    @if(!$reminder->isTooLateToComplete())
+                                        <form action="{{ route('reminders.complete', $reminder->id) }}" method="POST" class="ml-4">
+                                            @csrf
+                                            <button type="submit" class="btn btn-danger">
+                                                Completează
+                                            </button>
+                                        </form>
+                                    @else
+                                        <p class="text-error ml-4">
+                                            <i class="fas fa-exclamation-triangle"></i> 
+                                            Nu mai poți marca acest memento ca completat. Contactează îngrijitorul tău.
+                                        </p>
+                                    @endif
                                 </div>
                             </div>
                         @endforeach
@@ -158,16 +168,26 @@
                                 <div class="flex justify-between items-start">
                                     <div>
                                         <h3 class="font-semibold text-blue-900">{{ $reminder->title }}</h3>
-                                        <p class="text-sm text-blue-700">
+                                        @if($reminder->description)
+                                            <p class="text-sm text-blue-800 mt-1">{{ $reminder->description }}</p>
+                                        @endif
+                                        <p class="text-sm text-blue-700 mt-2">
                                             Programat pentru <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
                                         </p>
                                     </div>
-                                    <form action="{{ route('reminders.complete', $reminder->id) }}" method="POST" class="ml-4">
-                                        @csrf
-                                        <button type="submit" class="btn btn-primary">
-                                            Completează
-                                        </button>
-                                    </form>
+                                    @if(!$reminder->isTooLateToComplete())
+                                        <form action="{{ route('reminders.complete', $reminder->id) }}" method="POST" class="ml-4">
+                                            @csrf
+                                            <button type="submit" class="btn btn-primary">
+                                                Completează
+                                            </button>
+                                        </form>
+                                    @else
+                                        <p class="text-error ml-4">
+                                            <i class="fas fa-exclamation-triangle"></i> 
+                                            Nu mai poți marca acest memento ca completat. Contactează îngrijitorul tău.
+                                        </p>
+                                    @endif
                                 </div>
                             </div>
                         @endforeach
@@ -191,16 +211,13 @@
                                 <div class="flex justify-between items-start">
                                     <div>
                                         <h3 class="font-semibold text-yellow-900">{{ $reminder->title }}</h3>
-                                        <p class="text-sm text-yellow-700">
-                                            Programat pentru <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
+                                        @if($reminder->description)
+                                            <p class="text-sm text-yellow-800 mt-1">{{ $reminder->description }}</p>
+                                        @endif
+                                        <p class="text-sm text-yellow-700 mt-2">
+                                            Programat pentru {{ Carbon\Carbon::parse($reminder->next_occurrence)->locale('ro')->isoFormat('D MMMM YYYY') }}, <span data-timestamp="{{ $reminder->next_occurrence }}" data-type="time"></span>
                                         </p>
                                     </div>
-                                    <form action="{{ route('reminders.complete', $reminder->id) }}" method="POST" class="ml-4">
-                                        @csrf
-                                        <button type="submit" class="btn btn-warning">
-                                            Completează
-                                        </button>
-                                    </form>
                                 </div>
                             </div>
                         @endforeach
@@ -285,7 +302,7 @@
                                     @endif
                                 </div>
                                 <p class="text-sm text-green-700 mt-1">
-                                    Completat la {{ $reminder->pivot->completed_at }}
+                                    Completat la {{ date('Y-m-d H:i:s', strtotime($reminder->pivot->completed_at)) }}
                                 </p>
                             </div>
                         </div>

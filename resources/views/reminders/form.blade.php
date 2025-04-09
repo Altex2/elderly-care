@@ -52,6 +52,42 @@
                 <input type="time" name="time" id="time" value="{{ old('time', isset($reminder) ? $reminder->time->format('H:i') : '') }}" required>
             </div>
 
+            <!-- Priority -->
+            <div>
+                <label for="priority" class="block text-md font-medium text-gray-700 mb-2">Prioritate</label>
+                <div class="space-y-4">
+                    <label class="flex items-start space-x-3 cursor-pointer">
+                        <input type="radio" name="priority" value="high" 
+                               {{ (old('priority', $reminder->priority ?? '') == 'high') ? 'checked' : '' }}
+                               class="mt-1 h-5 w-5 text-red-600 focus:ring-red-500" required>
+                        <div>
+                            <span class="font-medium text-red-600">Înaltă</span>
+                            <p class="text-sm text-gray-500">Pentru medicamente critice sau activități care nu pot fi amânate (ex: insulină, medicamente pentru inimă)</p>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-start space-x-3 cursor-pointer">
+                        <input type="radio" name="priority" value="medium" 
+                               {{ (old('priority', $reminder->priority ?? '') == 'medium') ? 'checked' : '' }}
+                               class="mt-1 h-5 w-5 text-yellow-600 focus:ring-yellow-500" required>
+                        <div>
+                            <span class="font-medium text-yellow-600">Medie</span>
+                            <p class="text-sm text-gray-500">Pentru medicamente regulate sau activități importante dar nu urgente (ex: vitamine, exerciții)</p>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-start space-x-3 cursor-pointer">
+                        <input type="radio" name="priority" value="low" 
+                               {{ (old('priority', $reminder->priority ?? '') == 'low') ? 'checked' : '' }}
+                               class="mt-1 h-5 w-5 text-green-600 focus:ring-green-500" required>
+                        <div>
+                            <span class="font-medium text-green-600">Scăzută</span>
+                            <p class="text-sm text-gray-500">Pentru activități opționale sau flexibile (ex: plimbare, activități sociale)</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
             <!-- Start Date -->
             <div>
                 <label for="start_date" class="block text-md font-medium text-gray-700 mb-2">Data de început</label>

@@ -50,17 +50,13 @@ class User extends Authenticatable
     // Patients managed by this caregiver
     public function patients(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'caregiver_patient', 'caregiver_id', 'patient_id')
-                    ->whereRaw('users.role = ?', ['user'])
-                    ->withTimestamps();
+        return $this->belongsToMany(User::class, 'caregiver_patient', 'caregiver_id', 'patient_id');
     }
 
     // Caregivers managing this patient
     public function caregivers(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'caregiver_patient', 'patient_id', 'caregiver_id')
-                    ->where('role', 'caregiver')
-                    ->withTimestamps();
+        return $this->belongsToMany(User::class, 'caregiver_patient', 'patient_id', 'caregiver_id');
     }
 
     // Get all reminders for a caregiver's patients
@@ -91,10 +87,9 @@ class User extends Authenticatable
     // Get reminders assigned to this user
     public function assignedReminders(): BelongsToMany
     {
-        return $this->belongsToMany(Reminder::class, 'reminder_user')
-            ->withPivot('completed', 'completed_at')
-            ->withTimestamps()
-            ->where('reminders.status', 'active');
+        return $this->belongsToMany(Reminder::class, 'reminder_user', 'user_id', 'reminder_id')
+            ->withPivot(['completed', 'completed_at', 'completed_by', 'skipped', 'skip_reason'])
+            ->withTimestamps();
     }
 
     // Get completed reminders for this user
@@ -135,5 +130,17 @@ class User extends Authenticatable
     public function emergencyContacts()
     {
         return $this->hasMany(EmergencyContact::class);
+    }
+
+    public function caregiver(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'caregiver_patient', 'patient_id', 'caregiver_id')
+            ->where('role', 'caregiver');
+    }
+
+    public function notifications()
+    {
+        return $this->morphMany(\Illuminate\Notifications\DatabaseNotification::class, 'notifiable')
+            ->orderBy('created_at', 'desc');
     }
 }

@@ -7,6 +7,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use OpenAI\OpenAI;
 
@@ -130,6 +131,9 @@ class VoiceCommandService
         $text = strtolower(trim($text));
         Log::info('Processing text command:', ['text' => $text]);
 
+        // Store original text before improvement for use with completion commands
+        $originalText = $text;
+
         // Use OpenAI to improve command recognition
         $improvedText = $this->improveCommandRecognition($text);
         if ($improvedText !== $text) {
@@ -140,7 +144,7 @@ class VoiceCommandService
         // List reminders
         if (preg_match('/(ce am de făcut|ce am de facut|ce trebuie să fac|lista de memento|arată-mi memento)/', $text)) {
             Log::info('Command type: List reminders');
-            $this->handleRemindersList();
+            $this->handleRemindersList($text);
             return;
         }
 
@@ -151,10 +155,11 @@ class VoiceCommandService
             return;
         }
 
-        // Complete reminder
+        // Complete reminder - use original text to preserve the exact reminder name
         if (preg_match('/(am făcut|am facut|am terminat|am luat|am băut|am completat)/', $text)) {
             Log::info('Command type: Complete reminder');
-            $this->handleCompleteReminder($text);
+            // Use the original text instead of the improved text to preserve the exact reminder name
+            $this->handleCompleteReminder($originalText);
             return;
         }
 
@@ -206,11 +211,11 @@ class VoiceCommandService
                 'Memento nou mâine la ora {time} {title}',
                 'Reamintește-mi mâine să {action} la ora {time}',
                 
-                // Complete reminder patterns
-                'Am făcut {reminder_name}',
-                'Am terminat {reminder_name}',
-                'Am luat {reminder_name}',
-                'Am completat {reminder_name}',
+                // Complete reminder patterns - CHANGED: Don't use placeholders to preserve actual reminder names
+                'Am făcut [reminder name]',
+                'Am terminat [reminder name]',
+                'Am luat [reminder name]',
+                'Am completat [reminder name]',
                 
                 // Help and emergency patterns
                 'Ce poți să faci',
@@ -221,7 +226,10 @@ class VoiceCommandService
             
             $systemPrompt = 'You are a voice command processor for an elderly care application. 
             Your task is to match the transcribed text to the closest known command pattern.
-            You should only output the corrected command, nothing else.';
+            You should only output the corrected command, nothing else.
+            IMPORTANT: For "complete reminder" commands, preserve the exact reminder name from the input. 
+            DO NOT substitute placeholders like [reminder name] in your response.
+            For example, if the user says "Am luat medicament 3", respond with "Am luat medicament 3", not "Am luat [reminder name]".';
             
             $userPrompt = "The transcribed text is: \"$text\"\n\nKnown command patterns:\n- " . 
                 implode("\n- ", $knownPatterns) . 
@@ -259,32 +267,101 @@ class VoiceCommandService
         }
     }
 
-    protected function handleRemindersList()
+    protected function handleRemindersList($text)
     {
         $userTime = $this->getUserTime();
+        $text = strtolower($text ?? '');
         
-        $reminders = $this->user->assignedReminders()
+        // Check for different timeframes
+        $isTomorrowRequest = preg_match('/(maine|mâine)/', $text);
+        $isThisWeekRequest = preg_match('/(săptămâna aceasta|saptamana aceasta|săptămâna asta|saptamana asta)/', $text);
+        $isNextWeekRequest = preg_match('/(săptămâna următoare|saptamana urmatoare|săptămâna viitoare|saptamana viitoare)/', $text);
+        $isThisMonthRequest = preg_match('/(luna aceasta|luna asta|lună aceasta|lună asta)/', $text);
+        
+        // Set the target date range based on the request
+        if ($isTomorrowRequest) {
+            $startDate = $userTime->copy()->addDay()->startOfDay();
+            $endDate = $startDate->copy()->endOfDay();
+            $dateText = 'mâine';
+            $showDates = false;
+        } elseif ($isThisWeekRequest) {
+            $startDate = $userTime->copy()->startOfWeek();
+            $endDate = $userTime->copy()->endOfWeek();
+            $dateText = 'săptămâna aceasta';
+            $showDates = true;
+        } elseif ($isNextWeekRequest) {
+            $startDate = $userTime->copy()->addWeek()->startOfWeek();
+            $endDate = $startDate->copy()->endOfWeek();
+            $dateText = 'săptămâna următoare';
+            $showDates = true;
+        } elseif ($isThisMonthRequest) {
+            $startDate = $userTime->copy()->startOfMonth();
+            $endDate = $userTime->copy()->endOfMonth();
+            $dateText = 'luna aceasta';
+            $showDates = true;
+        } else {
+            // Default to today
+            $startDate = $userTime->copy()->startOfDay();
+            $endDate = $userTime->copy()->endOfDay();
+            $dateText = 'astăzi';
+            $showDates = false;
+        }
+        
+        Log::info('Date range details:', [
+            'user_time' => $userTime->format('Y-m-d H:i:s'),
+            'start_date' => $startDate->format('Y-m-d H:i:s'),
+            'end_date' => $endDate->format('Y-m-d H:i:s'),
+            'date_text' => $dateText
+        ]);
+        
+        // Base query for reminders
+        $query = $this->user->assignedReminders()
             ->where('reminders.status', 'active')
-            ->where('reminder_user.completed', false)
-            ->orderBy('reminders.next_occurrence')
-            ->get();
+            ->whereBetween('reminders.next_occurrence', [$startDate, $endDate]);
+
+        // Only check completion status for today's reminders
+        if (!$isTomorrowRequest && !$isThisWeekRequest && !$isNextWeekRequest && !$isThisMonthRequest) {
+            $query->where('reminder_user.completed', false);
+        }
+
+        $reminders = $query->orderBy('reminders.next_occurrence')->get();
+
+        Log::info('Found reminders for date range:', [
+            'count' => $reminders->count(),
+            'reminders' => $reminders->map(function($reminder) {
+                return [
+                    'id' => $reminder->id,
+                    'title' => $reminder->title,
+                    'next_occurrence' => $reminder->next_occurrence,
+                    'status' => $reminder->status,
+                    'completed' => $reminder->pivot->completed ?? null
+                ];
+            })->toArray()
+        ]);
 
         if ($reminders->isEmpty()) {
-            $this->responseText = 'Nu aveți memento-uri active pentru astăzi.';
+            $this->responseText = "Nu aveți memento-uri active pentru {$dateText}.";
             return;
         }
 
-        $this->responseText = 'Iată memento-urile dvs. pentru astăzi: ';
+        $this->responseText = "Iată memento-urile dvs. pentru {$dateText}: ";
         foreach ($reminders as $reminder) {
-            $this->responseText .= $reminder->title . ' la ora ' . 
-                Carbon::parse($reminder->next_occurrence)->format('H:i') . '. ';
+            $nextOccurrence = Carbon::parse($reminder->next_occurrence);
+            $time = $nextOccurrence->format('H:i');
+            
+            if ($showDates) {
+                $date = $nextOccurrence->format('d.m.Y');
+                $this->responseText .= $reminder->title . ' pe ' . $date . ' la ora ' . $time . '. ';
+            } else {
+                $this->responseText .= $reminder->title . ' la ora ' . $time . '. ';
+            }
         }
     }
 
     protected function handleNewReminder(string $text)
     {
         Log::info('Processing new reminder command:', ['text' => $text]);
-        
+         
         // Extract time and title from various command patterns
         $patterns = [
             '/reamintește-mi să (.+) la (.+)/i',
@@ -306,7 +383,7 @@ class VoiceCommandService
                 break;
             }
         }
-        
+
         if (!$matches || count($matches) < 3) {
             Log::warning('Failed to match reminder pattern:', ['text' => $text]);
             
@@ -340,7 +417,7 @@ class VoiceCommandService
         // Handle different match patterns
         if (strpos($text, 'memento nou') !== false) {
             Log::info('Processing memento nou pattern');
-            
+
             // Check for future day mentions
             $futureDay = null;
             if (strpos($text, 'mâine') !== false) {
@@ -416,6 +493,17 @@ class VoiceCommandService
             }
         }
 
+        // Use ChatGPT to check if the title might be a misspelled medication name
+        $originalTitle = $title;
+        $improvedTitle = $this->checkAndFixMedicationName($title);
+        if ($improvedTitle !== $title) {
+            Log::info('Corrected medication name:', [
+                'original' => $title, 
+                'corrected' => $improvedTitle
+            ]);
+            $title = $improvedTitle;
+        }
+
         Log::info('Extracted reminder details:', [
             'title' => $title, 
             'time' => $time,
@@ -459,7 +547,110 @@ class VoiceCommandService
         
         // Format the response based on whether it's for today or a future day
         $dayText = $futureDay ? ' pentru ' . $futureDay->format('d.m.Y') : '';
-        $this->responseText = "Am creat memento-ul: {$title} la ora {$time}{$dayText}.";
+        
+        // If we corrected the medication name, include both versions in the response
+        if ($improvedTitle !== $originalTitle) {
+            $this->responseText = "Am creat memento-ul: {$title} la ora {$time}{$dayText}. Am corectat numele medicamentului din '{$originalTitle}' în '{$title}'.";
+        } else {
+            $this->responseText = "Am creat memento-ul: {$title} la ora {$time}{$dayText}.";
+        }
+    }
+
+    /**
+     * Check if the title might be a misspelled medication name and fix it
+     * 
+     * @param string $title The original title
+     * @return string The corrected title or the original if no correction needed
+     */
+    protected function checkAndFixMedicationName(string $title)
+    {
+        try {
+            // Skip if OpenAI API key is not configured or title is too short
+            if (!config('services.openai.api_key') || strlen($title) < 3) {
+                return $title;
+            }
+            
+            $systemPrompt = 'You are a medication name matching system for elderly users in Romania. 
+            Your task is to determine if the user\'s input is a misspelled or mispronounced name of a common Romanian medication.
+            If it is, provide the correct medication name. Only respond with a corrected name if you are very confident.
+            If you are not confident, return the original name unchanged.
+            
+            Common Romanian medications include:
+            Paracetamol, Algocalmin, Nurofen, Aspirin, Ibuprofen, Ketonal, Fasconal, Piafen,
+            Metamizol, Colebil, Fervex, Strepsils, Theraflu, Decasept, Coldrex, Tantum Verde,
+            Claritine, Zyrtec, Aerius, Vibrocil, Bixtonim, Olynth, Otipax, Oticalm,
+            Amoxicilina, Augmentin, Cefort, Cefuroxim, Ciprofloxacin, Gentamicina, Zentel,
+            Miconal, Fluconazol, Canesten, Aciclovir, Zovirax, Oseltamivir, Tamiflu,
+            Omeprazol, Controloc, Nexium, Pantoprazol, Esomeprazol, Ranitidina, Metoclopramid,
+            Drotaverina, No-Spa, Dulcolax, Senna, Loperamid, Smecta, Linex, Debridat,
+            Diazepam, Xanax, Alprazolam, Oxazepam, Levomepromazina, Haloperidol, Risperidona,
+            Atorvastatina, Sortis, Lipitor, Rosuvastatina, Crestor, Simvastatina, Fenofibrat,
+            Metoprolol, Concor, Bisoprolol, Betaloc, Nebivolol, Atenolol, Propranolol,
+            Amlodipina, Norvasc, Verapamil, Diltiazem, Nifedipina, Lercanidipina,
+            Enalapril, Prestarium, Perindopril, Accupro, Quinapril, Ramipril, Tritace,
+            Furosemid, Lasix, Indapamida, Spironolactona, Verospiron, Torasemid,
+            Metformin, Siofor, Glucophage, Amaryl, Glimepirid, Diamicron, Gliclazida,
+            Levotiroxina, Euthyrox, L-Thyroxin, Thybon, Vidalta, Betaserc, Tanakan,
+            Piracetam, Memotropil, Gingko biloba, Bilobil, Cavinton, Vinpocetina,
+            Prednison, Medrol, Metilprednisolon, Dexametazona, Fastum, Diclofenac,
+            Tramadol, Algocalmin, Piafen, Paduden, No-Spa, Hidrasec, Dulcolax, Siofor, 
+            Aspacardin, Anavenol, Cardiasol, Cebrium, Serlift, Detralex, Doxium, Apinevrin, 
+            Monopril, Lorista, Escitalopram, Sermion, Nitromint, Nitroglicerina, Isoptin, 
+            Plavix, Fraxiparina.
+            
+            Pay special attention to:
+            1. Properly correcting spaces - for example "Aspa Cardin" should become "Aspacardin"
+            2. Fixing common phonetic misspellings - like "ana veran" to "Anavenol"
+            3. Ensuring proper capitalization - most medications start with capital letters
+            
+            Your response should be ONLY the corrected medication name without any explanation, or the exact original text if no correction is needed.';
+            
+            $userPrompt = "The user said: \"$title\". If this seems to be a misspelled Romanian medication name, provide the correct name. Otherwise, return exactly: \"$title\"";
+            
+            $client = \OpenAI::client(config('services.openai.api_key'));
+            
+            $response = $client->chat()->create([
+                'model' => 'gpt-3.5-turbo',
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $userPrompt]
+                ],
+                'temperature' => 0.3,
+                'max_tokens' => 50
+            ]);
+            
+            $correctedName = trim($response->choices[0]->message->content);
+            
+            // Check if the response is significantly different from the original
+            similar_text(strtolower($title), strtolower($correctedName), $percent);
+            
+            // Special handling for medication names with spaces that should be combined
+            $titleNoSpaces = str_replace(' ', '', strtolower($title));
+            $correctedNoSpaces = str_replace(' ', '', strtolower($correctedName));
+            similar_text($titleNoSpaces, $correctedNoSpaces, $percentNoSpaces);
+            
+            // Accept the correction if either the regular similarity is high enough
+            // or the no-spaces similarity is very high (for cases like "Aspa Cardin" -> "Aspacardin")
+            if (($percent < 60 && $percentNoSpaces < 80) || 
+                $correctedName === $title || 
+                strlen($correctedName) > strlen($title) * 2 || 
+                strlen($correctedName) < 3) {
+                return $title;
+            }
+            
+            Log::info('Medication name correction:', [
+                'original' => $title,
+                'corrected' => $correctedName,
+                'similarity_percent' => $percent,
+                'similarity_no_spaces_percent' => $percentNoSpaces
+            ]);
+            
+            return $correctedName;
+            
+        } catch (\Exception $e) {
+            Log::error('Error checking medication name:', ['error' => $e->getMessage()]);
+            return $title;
+        }
     }
 
     protected function handleCompleteReminder(string $text)
@@ -481,7 +672,7 @@ class VoiceCommandService
             }
         }
 
-        if (!$matches || count($matches) < 3) {
+        if (!$matches || count($matches) < 2) {
             Log::warning('Failed to match completion pattern:', ['text' => $text]);
             $this->responseText = 'Nu am putut înțelege ce memento doriți să marcați ca finalizat.';
             return;
@@ -519,6 +710,27 @@ class VoiceCommandService
             })
             ->first();
 
+        // If no direct match, try fuzzy matching with ChatGPT
+        if (!$reminder && $allReminders->count() > 0) {
+            $matchedReminderId = $this->findReminderWithFuzzyMatching($searchTitle, $allReminders->pluck('title')->toArray(), $allReminders->pluck('id')->toArray());
+            
+            if ($matchedReminderId) {
+                $reminder = $this->user->assignedReminders()
+                    ->where('reminders.status', 'active')
+                    ->where('reminder_user.completed', false)
+                    ->where('reminders.id', $matchedReminderId)
+                    ->first();
+                
+                if ($reminder) {
+                    Log::info('Found reminder using fuzzy matching:', [
+                        'reminder_id' => $reminder->id,
+                        'title' => $reminder->title,
+                        'matched_title' => $title
+                    ]);
+                }
+            }
+        }
+
         if (!$reminder) {
             Log::warning('Reminder not found:', [
                 'search_title' => $searchTitle,
@@ -534,13 +746,144 @@ class VoiceCommandService
             'matched_title' => $title
         ]);
 
-        // Update the pivot table
-        $this->user->assignedReminders()->updateExistingPivot($reminder->id, [
-            'completed' => true,
-            'completed_at' => $this->getUserTime()
+        // Create a Romania timezone DateTime with the correct time
+        $romaniaTime = Carbon::now('Europe/Bucharest');
+        
+        Log::info('Completing reminder with Romania timezone:', [
+            'reminder_id' => $reminder->id,
+            'completed_at' => $romaniaTime->format('Y-m-d H:i:s'),
+            'timezone' => $romaniaTime->tzName
         ]);
 
+        // Calculate next occurrence based on frequency
+        if ($reminder->frequency !== 'once') {
+            $originalTime = Carbon::parse($reminder->start_date);
+            
+            switch ($reminder->frequency) {
+                case 'daily':
+                    $nextDate = $romaniaTime->copy()->addDay();
+                    break;
+                case 'weekly':
+                    $nextDate = $romaniaTime->copy()->addWeek();
+                    break;
+                case 'monthly':
+                    $nextDate = $romaniaTime->copy()->addMonth();
+                    break;
+                case 'yearly':
+                    $nextDate = $romaniaTime->copy()->addYear();
+                    break;
+                default:
+                    $nextDate = null;
+            }
+
+            if ($nextDate) {
+                // Keep the original hour and minute
+                $nextDate->setTime($originalTime->hour, $originalTime->minute);
+                $reminder->next_occurrence = $nextDate;
+                $reminder->save();
+                
+                Log::info('Set next occurrence:', [
+                    'reminder_id' => $reminder->id,
+                    'next_occurrence' => $nextDate->format('Y-m-d H:i:s')
+                ]);
+            }
+        }
+
+        // Store the timestamp in the database explicitly as a string to preserve the exact time
+        $completedAtString = $romaniaTime->format('Y-m-d H:i:s');
+
+        // Update the pivot table with the formatted timestamp string
+        $this->user->assignedReminders()->updateExistingPivot($reminder->id, [
+            'completed' => true,
+            'completed_at' => $completedAtString
+        ]);
+
+        // Update the reminder itself
+        $reminder->completed = true;
+        $reminder->completed_at = $romaniaTime;
+        $reminder->save();
+
         $this->responseText = "Am marcat memento-ul {$reminder->title} ca finalizat.";
+    }
+
+    /**
+     * Find a reminder by fuzzy matching the title using ChatGPT
+     * 
+     * @param string $spokenTitle The title spoken by the user
+     * @param array $availableTitles Array of available reminder titles
+     * @param array $reminderIds Array of corresponding reminder IDs
+     * @return int|null The ID of the matched reminder, or null if no match
+     */
+    protected function findReminderWithFuzzyMatching(string $spokenTitle, array $availableTitles, array $reminderIds)
+    {
+        try {
+            // Skip if OpenAI API key is not configured or no available titles
+            if (!config('services.openai.api_key') || empty($availableTitles)) {
+                return null;
+            }
+            
+            // Create a mapping of titles to IDs
+            $titleToIdMap = array_combine($availableTitles, $reminderIds);
+            
+            $systemPrompt = 'You are a reminder matching system for elderly users. 
+            Your task is to determine if the user\'s spoken reminder title matches one of the available reminders.
+            If there is a match, respond with ONLY the number of the matching reminder.
+            If there is no match, respond with "No match found".
+            Consider typos, mispronunciations, partial matches, and phonetic similarities.';
+            
+            $availableTitlesNumbered = array_map(function($index, $title) {
+                return ($index + 1) . ". " . $title;
+            }, array_keys($availableTitles), $availableTitles);
+            
+            $userPrompt = "The user said they completed: \"$spokenTitle\"\n\nAvailable reminders:\n" . 
+                implode("\n", $availableTitlesNumbered) . 
+                "\n\nRespond with ONLY the number of the matching reminder (1, 2, etc.), or \"No match found\" if none matches.";
+            
+            $client = \OpenAI::client(config('services.openai.api_key'));
+            
+            $response = $client->chat()->create([
+                'model' => 'gpt-3.5-turbo',
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $userPrompt]
+                ],
+                'temperature' => 0.3,
+                'max_tokens' => 10
+            ]);
+            
+            $result = trim($response->choices[0]->message->content);
+            
+            // Extract just the number from the response
+            if (preg_match('/^(\d+)/', $result, $matches)) {
+                $matchNumber = (int)$matches[1];
+                
+                // Check if the match number is valid
+                if ($matchNumber >= 1 && $matchNumber <= count($availableTitles)) {
+                    $matchedTitle = $availableTitles[$matchNumber - 1];
+                    $matchedId = $titleToIdMap[$matchedTitle];
+                    
+                    Log::info('Fuzzy match found:', [
+                        'spoken' => $spokenTitle,
+                        'matched' => $matchedTitle,
+                        'reminder_id' => $matchedId
+                    ]);
+                    
+                    return $matchedId;
+                }
+            }
+            
+            Log::info('No fuzzy match found:', [
+                'spoken' => $spokenTitle,
+                'available' => $availableTitles,
+                'gpt_response' => $result
+            ]);
+            
+            return null;
+            
+        } catch (\Exception $e) {
+            Log::error('Error in fuzzy matching:', ['error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     protected function handleEmergency()

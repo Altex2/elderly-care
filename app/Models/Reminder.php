@@ -76,6 +76,13 @@ class Reminder extends Model
             ->withTimestamps();
     }
 
+    public function assignedUsers()
+    {
+        return $this->belongsToMany(User::class, 'reminder_user')
+            ->withPivot('completed', 'completed_at')
+            ->withTimestamps();
+    }
+
     public function calculateNextOccurrence(): ?Carbon
     {
         if ($this->is_forever) {
@@ -86,53 +93,47 @@ class Reminder extends Model
         $startDate = Carbon::parse($this->start_date);
         $endDate = $this->end_date ? Carbon::parse($this->end_date) : null;
 
-        // If the start date is in the future, use it as the next occurrence
-        if ($startDate->isFuture()) {
-            return $startDate;
-        }
-
         // If we have an end date and it's in the past, don't set next occurrence
         if ($endDate && $endDate->isPast()) {
             return null;
         }
 
-        // Calculate the next occurrence based on frequency
-        $next = $startDate->copy();
-        $maxIterations = 1000; // Prevent infinite loops
-        $iterations = 0;
+        // For new reminders (not completed yet), use the start date
+        if (!$this->completed && !$this->completed_at) {
+            return $startDate;
+        }
 
-        while ($next->isPast() && $iterations < $maxIterations) {
-            $iterations++;
+        // If the reminder was completed, calculate next occurrence from completion time
+        if ($this->completed && $this->completed_at) {
+            $baseDate = Carbon::parse($this->completed_at);
+            $originalTime = Carbon::parse($this->start_date);
+            
+            // Calculate the next occurrence based on frequency
             switch ($this->frequency) {
                 case 'daily':
-                    $next->addDay();
+                    $next = $baseDate->copy()->addDay();
                     break;
                 case 'weekly':
-                    $next->addWeek();
+                    $next = $baseDate->copy()->addWeek();
                     break;
                 case 'monthly':
-                    $next->addMonth();
+                    $next = $baseDate->copy()->addMonth();
                     break;
                 case 'yearly':
-                    $next->addYear();
+                    $next = $baseDate->copy()->addYear();
                     break;
                 case 'once':
                     return null;
+                default:
+                    return null;
             }
+
+            // Preserve the original time of day
+            return $next->setTime($originalTime->hour, $originalTime->minute);
         }
 
-        // If we hit the max iterations, return null
-        if ($iterations >= $maxIterations) {
-            return null;
-        }
-
-        // If we have an end date and the calculated next occurrence is after it,
-        // return null
-        if ($endDate && $next->gt($endDate)) {
-            return null;
-        }
-
-        return $next;
+        // If we get here, use the current next_occurrence
+        return $this->next_occurrence ? Carbon::parse($this->next_occurrence) : $startDate;
     }
 
     public function isActive(): bool
@@ -154,7 +155,12 @@ class Reminder extends Model
 
     public function getStatusText(): string
     {
-        if ($this->completed) {
+        // Check if any user has completed this reminder
+        $hasCompletedUsers = $this->users()
+            ->wherePivot('completed', true)
+            ->exists();
+
+        if ($hasCompletedUsers) {
             return 'Completat';
         }
 
@@ -343,6 +349,52 @@ class Reminder extends Model
     public function setCategory(string $category): void
     {
         $this->category = $category;
+        $this->save();
+    }
+
+    public function isMissed(): bool
+    {
+        if (!$this->next_occurrence || $this->completed) {
+            return false;
+        }
+
+        return $this->next_occurrence->addHour()->isPast();
+    }
+
+    public function isTooLateToComplete(): bool
+    {
+        if ($this->completed_at) {
+            return false;
+        }
+
+        $now = now();
+        $nextOccurrence = Carbon::parse($this->next_occurrence);
+        
+        // Too late to complete if more than 2 hours have passed
+        return $nextOccurrence->addHours(2)->isPast();
+    }
+
+    public function moveToNextOccurrence(): void
+    {
+        if (!$this->is_recurring) {
+            return;
+        }
+
+        $nextOccurrence = Carbon::parse($this->next_occurrence);
+        
+        switch ($this->frequency) {
+            case 'daily':
+                $nextOccurrence->addDay();
+                break;
+            case 'weekly':
+                $nextOccurrence->addWeek();
+                break;
+            case 'monthly':
+                $nextOccurrence->addMonth();
+                break;
+        }
+
+        $this->next_occurrence = $nextOccurrence;
         $this->save();
     }
 }

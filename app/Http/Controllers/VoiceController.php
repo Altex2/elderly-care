@@ -243,8 +243,45 @@ class VoiceController extends Controller
 
         foreach ($reminders as $reminder) {
             if (str_contains(strtolower($reminder->title), $reminderTitle)) {
+                // Use Romania timezone
+                $userNow = now()->setTimezone('Europe/Bucharest');
+                
+                // Mark as completed in pivot table
+                $reminder->users()->updateExistingPivot(auth()->id(), [
+                    'completed' => true,
+                    'completed_at' => $userNow
+                ]);
+
+                // Calculate next occurrence based on frequency
+                if ($reminder->frequency !== 'once') {
+                    $originalTime = Carbon::parse($reminder->start_date);
+                    
+                    switch ($reminder->frequency) {
+                        case 'daily':
+                            $nextDate = $userNow->copy()->addDay();
+                            break;
+                        case 'weekly':
+                            $nextDate = $userNow->copy()->addWeek();
+                            break;
+                        case 'monthly':
+                            $nextDate = $userNow->copy()->addMonth();
+                            break;
+                        case 'yearly':
+                            $nextDate = $userNow->copy()->addYear();
+                            break;
+                        default:
+                            $nextDate = null;
+                    }
+
+                    if ($nextDate) {
+                        // Keep the original hour and minute
+                        $nextDate->setTime($originalTime->hour, $originalTime->minute);
+                        $reminder->next_occurrence = $nextDate;
+                    }
+                }
+
                 $reminder->completed = true;
-                $reminder->completed_at = now();
+                $reminder->completed_at = $userNow;
                 $reminder->save();
 
                 return response()->json([
