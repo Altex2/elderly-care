@@ -17,6 +17,18 @@ class Kernel extends ConsoleKernel
         $schedule->call(function () {
             app(\App\Http\Controllers\ReminderController::class)->checkMissedReminders();
         })->hourly();
+
+        // Reset daily activities at midnight
+        $schedule->command('activities:reset')
+            ->daily()
+            ->at('00:00')
+            ->timezone('Europe/Bucharest');
+
+        // Update daily reminders at midnight
+        $schedule->command('reminders:update-daily')
+            ->daily()
+            ->at('00:00')
+            ->timezone('Europe/Bucharest');
     }
 
     /**

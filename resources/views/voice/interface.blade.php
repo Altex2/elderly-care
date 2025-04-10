@@ -36,10 +36,31 @@
                             <span class="text-primary mr-2">•</span> "Memento nou la ora [ora] [acțiune/medicament]"
                         </li>
                         <li class="flex items-center">
-                            <span class="text-primary mr-2">•</span> "Am făcut / am luat [acțiune/medicament]"
+                            <span class="text-purple-600 mr-2">•</span> "Am luat medicamentul [nume]"
+                        </li>
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am făcut [activitate]"
                         </li>
                     </ul>
                     </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Asistență Zilnică</h3>
+                    <ul class="space-y-3 text-md text-gray-600">
+
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am mâncat"
+                        </li>
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am făcut plimbarea"
+                        </li>
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am măsurat tensiunea"
+                        </li>
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am măsurat glicemia"
+                        </li>
+                    </ul>
+                                    </div>
                 <div class="p-4 bg-gray-50 rounded-lg">
                     <h3 class="text-lg font-medium text-gray-900 mb-2">Urgență</h3>
                     <ul class="space-y-3 text-md text-gray-600">
@@ -51,6 +72,27 @@
                         </li>
                         <li class="flex items-center">
                             <span class="text-danger mr-2">•</span> "Am nevoie de ajutor"
+                        </li>
+                    </ul>
+                                </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Întrebǎri Asistență Zilnică</h3>
+                    <ul class="space-y-3 text-md text-gray-600">
+
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am mâncat azi?"
+                        </li>
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am făcut plimbarea azi?"
+                        </li>
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am măsurat tensiunea azi?"
+                        </li>
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am măsurat glicemia azi?"
+                        </li>
+                        <li class="flex items-center">
+                            <span class="text-purple-600 mr-2">•</span> "Am luat / am făcut [acțiune/medicament] azi?"
                         </li>
                     </ul>
                 </div>

@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use OpenAI\OpenAI;
+use App\Models\Activity;
+use App\Notifications\EmergencyNotification;
+use App\Models\DailyActivity;
+use Illuminate\Support\Facades\Http;
 
 class VoiceCommandService
 {
@@ -131,55 +135,140 @@ class VoiceCommandService
         $text = strtolower(trim($text));
         Log::info('Processing text command:', ['text' => $text]);
 
-        // Store original text before improvement for use with completion commands
-        $originalText = $text;
+        try {
+            $systemPrompt = "You are a Romanian voice command processor for an elderly care application.
+            Your task is to classify the user's command into one of these categories and return ONLY the category name.
+            
+            Available Commands:
+            
+            Memento-uri:
+            1. 'Ce am de făcut?'
+            2. 'Ce am de făcut azi/mâine/săptămâna aceasta/săptămâna următoare/luna aceasta?'
+            3. 'Memento nou la ora [ora] [acțiune/medicament]'
+            4. 'Am luat medicamentul [nume]'
+            5. 'Am făcut [activitate]'
+            
+            Asistență Zilnică (Completare):
+            6. 'Am mâncat'
+            7. 'Am făcut plimbarea'
+            8. 'Am măsurat tensiunea'
+            9. 'Am măsurat glicemia'
+            
+            Întrebări Asistență Zilnică:
+            10. 'Am mâncat azi?/astăzi?'
+            11. 'Am făcut plimbarea azi?/astăzi?'
+            12. 'Am măsurat tensiunea azi?/astăzi?'
+            13. 'Am măsurat glicemia azi?/astăzi?'
+            14. 'Am luat/am făcut [acțiune/medicament] azi?/astăzi?'
+            
+            Urgență:
+            15. 'SOS'
+            16. 'Urgență'
+            17. 'Am nevoie de ajutor'
 
-        // Use OpenAI to improve command recognition
-        $improvedText = $this->improveCommandRecognition($text);
-        if ($improvedText !== $text) {
-            Log::info('Improved command text:', ['original' => $text, 'improved' => $improvedText]);
-            $text = strtolower(trim($improvedText)); // Make sure to use lowercase for consistent matching
+            Categories to return:
+            - list_reminders - For commands 1 and 2
+            - new_reminder - For command 3
+            - reminder_complete - For commands 4 and 5 (when NOT ending with 'azi' or 'astăzi')
+            - activity_complete - For commands 6-9 (when NOT ending with 'azi' or 'astăzi')
+            - activity_query - For commands 10-13 (when ending with 'azi' or 'astăzi')
+            - reminder_query - For command 14 (when ending with 'azi' or 'astăzi')
+            - emergency - For commands 15-17
+            - unknown - If none of the above match
+
+            Rules:
+            1. If a command ends with 'azi' or 'astăzi' (with or without punctuation), it MUST be classified as a query
+            2. For completions (without 'azi' or 'astăzi'), return activity_complete or reminder_complete
+            3. For list commands, return list_reminders
+            4. For new reminders, return new_reminder
+            5. For emergency, return emergency
+            6. Return ONLY the category name, nothing else
+
+            Example inputs and their categories:
+            - 'ce am de făcut mâine?' -> list_reminders
+            - 'am mâncat' -> activity_complete
+            - 'am mâncat azi?' -> activity_query
+            - 'am mâncat azi.' -> activity_query
+            - 'am mâncat astăzi?' -> activity_query
+            - 'am mâncat astăzi.' -> activity_query
+            - 'am luat medicamentul X' -> reminder_complete
+            - 'am luat medicamentul X azi?' -> reminder_query
+            - 'sos' -> emergency";
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . config('services.openai.api_key'),
+                'Content-Type' => 'application/json',
+            ])->post('https://api.openai.com/v1/chat/completions', [
+                'model' => 'gpt-4',
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $text]
+                ],
+                'temperature' => 0.1,
+                'max_tokens' => 10
+            ]);
+
+            $commandType = trim(strtolower($response->json()['choices'][0]['message']['content']));
+            Log::info('Command type determined by GPT:', ['type' => $commandType]);
+
+            switch ($commandType) {
+                case 'reminder_query':
+                    if (preg_match('/(am luat|am făcut) (.*?) (azi|astăzi)[.?]?$/i', $text, $matches)) {
+                        $reminderName = trim($matches[2]);
+                        $this->handleReminderQuery($reminderName);
+                    } else {
+                        $this->responseText = 'Nu am înțeles comanda. Vă rugăm să încercați din nou.';
+                    }
+                    break;
+
+                case 'activity_query':
+                    if (preg_match('/(am mâncat|am făcut plimbarea|am măsurat tensiunea|am măsurat glicemia) (azi|astăzi)[.?]?$/i', $text, $matches)) {
+                        $activity = $matches[1];
+                        $this->handleActivityQuery($activity);
+                    } else {
+                        $this->responseText = 'Nu am înțeles comanda. Vă rugăm să încercați din nou.';
+                    }
+                    break;
+
+                case 'activity_complete':
+                    if ($text === 'am mâncat') {
+                        $this->handleMealCompleted();
+                    } elseif ($text === 'am făcut plimbarea') {
+                        $this->handleWalkCompleted();
+                    } elseif ($text === 'am măsurat tensiunea') {
+                        $this->handleBloodPressureMeasured();
+                    } elseif ($text === 'am măsurat glicemia') {
+                        $this->handleBloodSugarMeasured();
+                    } else {
+                        $this->responseText = 'Nu am înțeles comanda. Vă rugăm să încercați din nou.';
+                    }
+                    break;
+
+                case 'reminder_complete':
+                    $this->handleCompleteReminder($text);
+                    break;
+
+                case 'list_reminders':
+                    $this->handleRemindersList($text);
+                    break;
+
+                case 'new_reminder':
+                    $this->handleNewReminder($text);
+                    break;
+
+                case 'emergency':
+                    $this->handleEmergency();
+                    break;
+
+                default:
+                    Log::warning('Unknown command pattern:', ['text' => $text]);
+                    $this->responseText = 'Nu am înțeles comanda. Vă rugăm să încercați din nou.';
+                    break;
+            }
+        } catch (\Exception $e) {
+            Log::error('Error processing command:', ['error' => $e->getMessage()]);
+            $this->responseText = 'Nu am putut procesa comanda. Vă rugăm să încercați din nou.';
         }
-
-        // List reminders
-        if (preg_match('/(ce am de făcut|ce am de facut|ce trebuie să fac|lista de memento|arată-mi memento)/', $text)) {
-            Log::info('Command type: List reminders');
-            $this->handleRemindersList($text);
-            return;
-        }
-
-        // Create new reminder
-        if (preg_match('/(memento nou|reamintește-mi|reaminteste-mi|reaminte-mi|reaminte mi)/', $text)) {
-            Log::info('Command type: Create new reminder');
-            $this->handleNewReminder($text);
-            return;
-        }
-
-        // Complete reminder - use original text to preserve the exact reminder name
-        if (preg_match('/(am făcut|am facut|am terminat|am luat|am băut|am completat)/', $text)) {
-            Log::info('Command type: Complete reminder');
-            // Use the original text instead of the improved text to preserve the exact reminder name
-            $this->handleCompleteReminder($originalText);
-            return;
-        }
-
-        // Emergency
-        if (preg_match('/(sos|urgență|urgenta|am nevoie de ajutor|ajutor)/', $text)) {
-            Log::info('Command type: Emergency');
-            $this->handleEmergency();
-            return;
-        }
-
-        // Help
-        if (preg_match('/(ce poți să faci|ce poti sa faci|ajută-mă|ajuta-ma|ajută mă)/', $text)) {
-            Log::info('Command type: Help');
-            $this->handleHelp();
-            return;
-        }
-
-        // Unknown command
-        Log::warning('Unknown command pattern:', ['text' => $text]);
-        $this->responseText = 'Nu am înțeles comanda. Vă rugăm să încercați din nou.';
     }
 
     /**
@@ -188,83 +277,102 @@ class VoiceCommandService
      * @param string $text The transcribed text
      * @return string The improved command text
      */
-    protected function improveCommandRecognition(string $text)
+    protected function improveCommandRecognition($text)
     {
+        // List of known command patterns
+        $knownPatterns = [
+            'ce am de făcut',
+            'memento nou la ora {time} {title}',
+            'am făcut {reminder}',
+            'am luat {medication}',
+            'am mâncat',
+            'am făcut plimbarea',
+            'am măsurat tensiunea',
+            'am măsurat glicemia',
+            'sos',
+            'urgență',
+            'am nevoie de ajutor'
+        ];
+
+        // Get active reminders to preserve their exact names
+        $activeReminders = $this->user->assignedReminders()
+            ->where('reminders.status', 'active')
+            ->pluck('reminders.title')
+            ->toArray();
+
+        $systemPrompt = "You are a Romanian language assistant. Your task is to match transcribed text to the closest known command pattern.
+        Rules:
+        1. Keep medication names EXACTLY as they are spoken
+        2. Only fix obvious typos in command words (e.g., 'facut' to 'făcut')
+        3. Preserve all numbers and special characters
+        4. Do NOT change or correct medication names
+        5. Do NOT add or remove words
+        6. If the text matches a known pattern, return it exactly as is
+        7. If unsure, return the original text
+
+        Known medication names: " . implode(', ', $activeReminders) . "
+        
+        Input: {$text}
+        Output:";
+
         try {
-            // Skip if OpenAI API key is not configured
-            if (!config('services.openai.api_key')) {
-                Log::warning('OpenAI API key not configured. Skipping command recognition improvement.');
-                return $text;
-            }
-            
-            // Define known command patterns
-            $knownPatterns = [
-                // List reminders patterns
-                'Ce am de făcut',
-                'Ce am de făcut azi',
-                'Arată-mi memento-urile',
-                'Lista de memento-uri',
-                
-                // Create reminder patterns
-                'Memento nou la ora {time} {title}',
-                'Reamintește-mi să {action} la ora {time}',
-                'Memento nou mâine la ora {time} {title}',
-                'Reamintește-mi mâine să {action} la ora {time}',
-                
-                // Complete reminder patterns - CHANGED: Don't use placeholders to preserve actual reminder names
-                'Am făcut [reminder name]',
-                'Am terminat [reminder name]',
-                'Am luat [reminder name]',
-                'Am completat [reminder name]',
-                
-                // Help and emergency patterns
-                'Ce poți să faci',
-                'Ajută-mă',
-                'SOS',
-                'Urgență'
-            ];
-            
-            $systemPrompt = 'You are a voice command processor for an elderly care application. 
-            Your task is to match the transcribed text to the closest known command pattern.
-            You should only output the corrected command, nothing else.
-            IMPORTANT: For "complete reminder" commands, preserve the exact reminder name from the input. 
-            DO NOT substitute placeholders like [reminder name] in your response.
-            For example, if the user says "Am luat medicament 3", respond with "Am luat medicament 3", not "Am luat [reminder name]".';
-            
-            $userPrompt = "The transcribed text is: \"$text\"\n\nKnown command patterns:\n- " . 
-                implode("\n- ", $knownPatterns) . 
-                "\n\nOutput only the corrected command that best matches, preserving any specific details like times, names, or actions.";
-            
-            $client = \OpenAI::client(config('services.openai.api_key'));
-            
-            $response = $client->chat()->create([
-                'model' => 'gpt-3.5-turbo',
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . config('services.openai.api_key'),
+                'Content-Type' => 'application/json',
+            ])->post('https://api.openai.com/v1/chat/completions', [
+                'model' => 'gpt-4',
                 'messages' => [
                     ['role' => 'system', 'content' => $systemPrompt],
-                    ['role' => 'user', 'content' => $userPrompt]
+                    ['role' => 'user', 'content' => $text]
                 ],
-                'temperature' => 0.3,
-                'max_tokens' => 100
+                'temperature' => 0.1,
+                'max_tokens' => 50
             ]);
-            
-            $improvedText = trim($response->choices[0]->message->content);
-            
-            // Validate that the improvement isn't just an explanation
-            if (strlen($improvedText) > 200 || strpos($improvedText, 'closest match') !== false) {
-                Log::warning('OpenAI provided an explanation instead of a corrected command', ['response' => $improvedText]);
-                return $text;
+
+            $improvedText = trim($response->json()['choices'][0]['message']['content']);
+
+            // Validate that the improved text is a valid command
+            if ($this->isValidCommand($improvedText)) {
+                Log::info('Improved command text', [
+                    'original' => $text,
+                    'improved' => $improvedText
+                ]);
+                return $improvedText;
             }
-            
-            return $improvedText;
+
+            return $text;
         } catch (\Exception $e) {
-            Log::error('Error improving command recognition:', [
+            Log::error('Error improving command recognition', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'text' => $text
             ]);
-            
-            // Return original text if there's an error
             return $text;
         }
+    }
+
+    protected function isValidCommand(string $text)
+    {
+        $validPatterns = [
+            '/(sos|urgență|am nevoie de ajutor)/i',
+            '/(am făcut|am luat|am mâncat|am măsurat) (.*) astăzi\?/i',
+            '/am luat medicamentul (.*)/i',
+            '/am făcut (.*)/i',
+            '/am mâncat/i',
+            '/am făcut plimbarea/i',
+            '/am măsurat tensiunea/i',
+            '/am măsurat glicemia/i',
+            '/ce am de făcut/i',
+            '/memento nou la ora (.*?) (.*)/i',
+            '/(am făcut|am luat) (.*)/i'
+        ];
+
+        foreach ($validPatterns as $pattern) {
+            if (preg_match($pattern, $text)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function handleRemindersList($text)
@@ -657,153 +765,49 @@ class VoiceCommandService
     {
         Log::info('Processing complete reminder command:', ['text' => $text]);
         
-        // Extract the reminder title from various patterns
-        $patterns = [
-            '/am (făcut|terminat|luat|completat) (.+)/i',
-            '/am (luat|băut) (medicamentul|pastila|tableta) (.+)/i',
-            '/am luat (.+)/i'
-        ];
-
-        $matches = null;
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $text, $matches)) {
-                Log::info('Pattern matched:', ['pattern' => $pattern, 'matches' => $matches]);
-                break;
-            }
-        }
-
-        if (!$matches || count($matches) < 2) {
-            Log::warning('Failed to match completion pattern:', ['text' => $text]);
-            $this->responseText = 'Nu am putut înțelege ce memento doriți să marcați ca finalizat.';
-            return;
-        }
-
-        // Get the title from the last match group
-        $title = trim($matches[count($matches) - 1]);
-        // Clean up the title by removing punctuation and extra spaces
-        $title = preg_replace('/[.,!?;:]/', '', $title);
-        $searchTitle = strtolower(trim($title));
-
-        Log::info('Looking for reminder:', [
-            'search_title' => $searchTitle,
-            'original_title' => $title
-        ]);
-
-        // Get all active reminders for debugging
-        $allReminders = $this->user->assignedReminders()
+        // Get all active reminders for the user
+        $reminders = $this->user->assignedReminders()
             ->where('reminders.status', 'active')
             ->where('reminder_user.completed', false)
             ->get();
 
-        Log::info('Available reminders:', [
-            'count' => $allReminders->count(),
-            'titles' => $allReminders->pluck('title')->toArray()
-        ]);
-
-        // Find the reminder using case-insensitive search
-        $reminder = $this->user->assignedReminders()
-            ->where('reminders.status', 'active')
-            ->where('reminder_user.completed', false)
-            ->where(function($query) use ($searchTitle) {
-                $query->whereRaw('LOWER(reminders.title) = ?', [$searchTitle])
-                      ->orWhereRaw('LOWER(reminders.title) LIKE ?', ['%' . $searchTitle . '%']);
-            })
-            ->first();
-
-        // If no direct match, try fuzzy matching with ChatGPT
-        if (!$reminder && $allReminders->count() > 0) {
-            $matchedReminderId = $this->findReminderWithFuzzyMatching($searchTitle, $allReminders->pluck('title')->toArray(), $allReminders->pluck('id')->toArray());
-            
-            if ($matchedReminderId) {
-                $reminder = $this->user->assignedReminders()
-                    ->where('reminders.status', 'active')
-                    ->where('reminder_user.completed', false)
-                    ->where('reminders.id', $matchedReminderId)
-                    ->first();
-                
-                if ($reminder) {
-                    Log::info('Found reminder using fuzzy matching:', [
-                        'reminder_id' => $reminder->id,
-                        'title' => $reminder->title,
-                        'matched_title' => $title
-                    ]);
-                }
-            }
-        }
-
-        if (!$reminder) {
-            Log::warning('Reminder not found:', [
-                'search_title' => $searchTitle,
-                'available_reminders' => $allReminders->pluck('title')->toArray()
-            ]);
-            $this->responseText = "Nu am găsit memento-ul: {$title}.";
+        if ($reminders->isEmpty()) {
+            $this->responseText = 'Nu aveți memento-uri active.';
             return;
         }
 
-        Log::info('Found reminder:', [
-            'reminder_id' => $reminder->id,
-            'title' => $reminder->title,
-            'matched_title' => $title
-        ]);
-
-        // Create a Romania timezone DateTime with the correct time
-        $romaniaTime = Carbon::now('Europe/Bucharest');
+        // Use ChatGPT to find the best matching reminder
+        $matchedReminderId = $this->findReminderWithFuzzyMatching($text, $reminders->pluck('title')->toArray(), $reminders->pluck('id')->toArray());
         
-        Log::info('Completing reminder with Romania timezone:', [
-            'reminder_id' => $reminder->id,
-            'completed_at' => $romaniaTime->format('Y-m-d H:i:s'),
-            'timezone' => $romaniaTime->tzName
-        ]);
-
-        // Calculate next occurrence based on frequency
-        if ($reminder->frequency !== 'once') {
-            $originalTime = Carbon::parse($reminder->start_date);
-            
-            switch ($reminder->frequency) {
-                case 'daily':
-                    $nextDate = $romaniaTime->copy()->addDay();
-                    break;
-                case 'weekly':
-                    $nextDate = $romaniaTime->copy()->addWeek();
-                    break;
-                case 'monthly':
-                    $nextDate = $romaniaTime->copy()->addMonth();
-                    break;
-                case 'yearly':
-                    $nextDate = $romaniaTime->copy()->addYear();
-                    break;
-                default:
-                    $nextDate = null;
-            }
-
-            if ($nextDate) {
-                // Keep the original hour and minute
-                $nextDate->setTime($originalTime->hour, $originalTime->minute);
-                $reminder->next_occurrence = $nextDate;
-                $reminder->save();
-                
-                Log::info('Set next occurrence:', [
-                    'reminder_id' => $reminder->id,
-                    'next_occurrence' => $nextDate->format('Y-m-d H:i:s')
-                ]);
-            }
+        if (!$matchedReminderId) {
+            $this->responseText = 'Nu am găsit memento-ul specificat.';
+            return;
         }
 
-        // Store the timestamp in the database explicitly as a string to preserve the exact time
-        $completedAtString = $romaniaTime->format('Y-m-d H:i:s');
+        // Get the matched reminder
+        $reminder = $reminders->firstWhere('id', $matchedReminderId);
+        
+        if (!$reminder) {
+            $this->responseText = 'Nu am putut găsi memento-ul.';
+            return;
+        }
 
-        // Update the pivot table with the formatted timestamp string
-        $this->user->assignedReminders()->updateExistingPivot($reminder->id, [
-            'completed' => true,
-            'completed_at' => $completedAtString
-        ]);
+        // Update both the reminders table and the reminder_user pivot table
+        DB::transaction(function () use ($reminder) {
+            // Update the reminder_user pivot table
+            $this->user->assignedReminders()->updateExistingPivot($reminder->id, [
+                'completed' => true,
+                'completed_at' => now()
+            ]);
 
-        // Update the reminder itself
-        $reminder->completed = true;
-        $reminder->completed_at = $romaniaTime;
-        $reminder->save();
+            // Update the main reminders table
+            $reminder->update([
+                'completed' => true,
+                'completed_at' => now()
+            ]);
+        });
 
-        $this->responseText = "Am marcat memento-ul {$reminder->title} ca finalizat.";
+        $this->responseText = "Am marcat memento-ul '{$reminder->title}' ca finalizat.";
     }
 
     /**
@@ -888,8 +892,20 @@ class VoiceCommandService
 
     protected function handleEmergency()
     {
-        $this->responseText = 'Vă ajut imediat! Contactez serviciile de urgență...';
-        // TODO: Implement emergency contact logic
+        // Get the user's caregivers
+        $caregivers = $this->user->caregivers;
+        
+        if ($caregivers->isEmpty()) {
+            $this->responseText = 'Nu aveți îngrijitori asociați. Vă rugăm să contactați un îngrijitor manual.';
+            return;
+        }
+
+        // Create emergency notification for each caregiver
+        foreach ($caregivers as $caregiver) {
+            $caregiver->notify(new EmergencyNotification($this->user));
+        }
+
+        $this->responseText = 'Am trimis o notificare de urgență către îngrijitorii dvs. Vă rugăm să așteptați ajutorul.';
     }
 
     protected function handleHelp()
@@ -898,6 +914,11 @@ class VoiceCommandService
             '"Ce am de făcut" pentru a vedea memento-urile, ' .
             '"Reamintește-mi să..." pentru a crea un memento nou, ' .
             '"Am făcut..." pentru a marca un memento ca finalizat, ' .
+            '"Am luat medicamentul X astăzi?" pentru a verifica dacă ați luat un medicament, ' .
+            '"Am mâncat astăzi?" pentru a verifica dacă ați luat masa, ' .
+            '"Am făcut plimbarea astăzi?" pentru a verifica dacă ați făcut plimbarea, ' .
+            '"Am măsurat tensiunea astăzi?" pentru a verifica dacă ați măsurat tensiunea, ' .
+            '"Am măsurat glicemia astăzi?" pentru a verifica dacă ați măsurat glicemia, ' .
             'sau "SOS" pentru ajutor de urgență.';
     }
 
@@ -1000,5 +1021,190 @@ class VoiceCommandService
         }
         
         return now();
+    }
+
+    protected function handleMedicationTaken($medicationName)
+    {
+        // Create a new activity record
+        $activity = new DailyActivity([
+            'user_id' => $this->user->id,
+            'type' => 'medication',
+            'description' => $medicationName,
+            'completed' => true,
+            'completed_at' => now(),
+            'date' => today()
+        ]);
+        $activity->save();
+
+        $this->responseText = "Am înregistrat că ați luat medicamentul $medicationName.";
+    }
+
+    protected function handleActivityCompleted($activity)
+    {
+        // Create a new activity record
+        $activityRecord = new DailyActivity([
+            'user_id' => $this->user->id,
+            'type' => 'activity',
+            'description' => $activity,
+            'completed' => true,
+            'completed_at' => now(),
+            'date' => today()
+        ]);
+        $activityRecord->save();
+
+        $this->responseText = "Am înregistrat că ați finalizat activitatea: $activity.";
+    }
+
+    protected function handleMealCompleted()
+    {
+        // Create a new activity record
+        $activity = new DailyActivity([
+            'user_id' => $this->user->id,
+            'type' => 'meal',
+            'description' => 'A luat masa',
+            'completed' => true,
+            'completed_at' => now(),
+            'date' => today()
+        ]);
+        $activity->save();
+
+        $this->responseText = 'Am înregistrat că ați luat masa.';
+    }
+
+    protected function handleWalkCompleted()
+    {
+        // Create a new activity record
+        $activity = new DailyActivity([
+            'user_id' => $this->user->id,
+            'type' => 'walk',
+            'description' => 'A făcut plimbarea zilnică',
+            'completed' => true,
+            'completed_at' => now(),
+            'date' => today()
+        ]);
+        $activity->save();
+
+        $this->responseText = 'Am înregistrat că ați făcut plimbarea zilnică.';
+    }
+
+    protected function handleBloodPressureMeasured()
+    {
+        // Create a new activity record
+        $activity = new DailyActivity([
+            'user_id' => $this->user->id,
+            'type' => 'blood_pressure',
+            'description' => 'A măsurat tensiunea arterială',
+            'completed' => true,
+            'completed_at' => now(),
+            'date' => today()
+        ]);
+        $activity->save();
+
+        $this->responseText = 'Am înregistrat măsurarea tensiunii arteriale.';
+    }
+
+    protected function handleBloodSugarMeasured()
+    {
+        // Create a new activity record
+        $activity = new DailyActivity([
+            'user_id' => $this->user->id,
+            'type' => 'blood_sugar',
+            'description' => 'A măsurat glicemia',
+            'completed' => true,
+            'completed_at' => now(),
+            'date' => today()
+        ]);
+        $activity->save();
+
+        $this->responseText = 'Am înregistrat măsurarea glicemiei.';
+    }
+
+    protected function handleActivityQuery($activity)
+    {
+        $activityType = $this->determineActivityType($activity);
+        
+        if (!$activityType) {
+            $this->responseText = 'Nu am putut înțelege despre ce activitate întrebați.';
+            return;
+        }
+
+        $activityRecord = DailyActivity::where('user_id', $this->user->id)
+            ->whereDate('date', today())
+            ->where('type', $activityType)
+            ->where('completed', true)
+            ->first();
+
+        // Remove "am " from the activity text for the response
+        $activityText = preg_replace('/^am /', '', $activity);
+
+        if ($activityRecord) {
+            $this->responseText = "Da, ați {$activityText} astăzi.";
+        } else {
+            $this->responseText = "Nu, nu ați {$activityText} astăzi.";
+        }
+    }
+
+    protected function determineActivityType($text)
+    {
+        try {
+            $client = \OpenAI::client(config('services.openai.api_key'));
+            
+            $response = $client->chat()->create([
+                'model' => 'gpt-3.5-turbo',
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are a Romanian language activity type classifier. 
+                    Your task is to determine which type of activity the user is asking about.
+                    Possible activity types are: walk, meal, blood_pressure, blood_sugar.
+                    Respond with ONLY the activity type or "unknown" if you cannot determine it.'],
+                    ['role' => 'user', 'content' => $text]
+                ],
+                'temperature' => 0.3,
+                'max_tokens' => 10
+            ]);
+
+            $activityType = trim($response->choices[0]->message->content);
+            
+            // Validate the activity type
+            if (in_array($activityType, ['walk', 'meal', 'blood_pressure', 'blood_sugar'])) {
+                return $activityType;
+            }
+            
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Error determining activity type:', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    protected function handleReminderQuery($reminderName)
+    {
+        Log::info('Processing reminder query:', ['reminder_name' => $reminderName]);
+
+        // Get all reminders for today (both completed and uncompleted)
+        $reminder = $this->user->assignedReminders()
+            ->where('reminders.status', 'active')
+            ->where(function($query) use ($reminderName) {
+                $query->whereRaw('LOWER(reminders.title) = ?', [strtolower($reminderName)])
+                      ->orWhereRaw('LOWER(reminders.title) LIKE ?', ['%' . strtolower($reminderName) . '%']);
+            })
+            ->first();
+
+        if (!$reminder) {
+            $this->responseText = "Nu am găsit memento-ul {$reminderName}.";
+            return;
+        }
+
+        // Check if the reminder was completed today
+        $completedToday = $this->user->assignedReminders()
+            ->where('reminders.id', $reminder->id)
+            ->where('reminder_user.completed', true)
+            ->whereDate('reminder_user.completed_at', today())
+            ->exists();
+
+        if ($completedToday) {
+            $this->responseText = "Da, ați luat {$reminder->title} astăzi.";
+        } else {
+            $this->responseText = "Nu, nu ați luat {$reminder->title} astăzi.";
+        }
     }
 } 
