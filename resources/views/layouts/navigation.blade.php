@@ -78,9 +78,6 @@
             <x-responsive-nav-link :href="route('caregiver.reminders')" :active="request()->routeIs('caregiver.reminders')">
                 {{ __('Memento-uri') }}
             </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('caregiver.patients')" :active="request()->routeIs('caregiver.patients')">
-                {{ __('Pacienți') }}
-            </x-responsive-nav-link>
         </div>
 
         <!-- Responsive Settings Options -->

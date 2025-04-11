@@ -60,7 +60,7 @@
                     @else
                         <a href="{{ route('login') }}" class="block py-3 px-4 text-lg text-center rounded-md mb-2 bg-gray-100 text-gray-800">Autentificare</a>
                         @if (Route::has('register'))
-                            <a href="{{ route('register') }}" class="block py-3 px-4 text-lg text-center rounded-md mb-2 bg-primary text-white">Înregistrare</a>
+                            <a href="{{ route('register') }}" class="block py-3 px-4 text-lg text-center rounded-md mb-2 bg-gray-100 text-gray-800">Înregistrare</a>
                         @endif
                     @endauth
                 @endif
